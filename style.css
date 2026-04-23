@@ -195,6 +195,25 @@ label {
   border-radius: 12px;
 }
 
+.division-name {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 12px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.division-empty-row td {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
 .action-column {
   width: 110px;
 }

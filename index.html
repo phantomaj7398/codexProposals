@@ -115,6 +115,10 @@
             <div class="field full">
               <label>Divisions Table</label>
               <div class="table-editor">
+                <div class="detail-division-controls">
+                  <div id="formDivisionPanel" class="choice-panel choice-panel-divisions" aria-label="Select divisions"></div>
+                  <button class="secondary-button compact-button" id="editFormDivisionsButton" type="button">Edit Divisions</button>
+                </div>
                 <div class="division-table-wrap">
                   <table class="division-table" aria-label="Proposal divisions">
                     <thead>
@@ -122,13 +126,12 @@
                         <th>Divisions</th>
                         <th>Comments</th>
                         <th>Additional Comments</th>
-                        <th class="action-column">Action</th>
                       </tr>
                     </thead>
                     <tbody id="divisionRows"></tbody>
                   </table>
                 </div>
-                <button class="secondary-button" id="addDivisionRow" type="button">Add Row</button>
+                <p id="formDivisionEmpty" class="hint" hidden>Select divisions above to add them to the table.</p>
               </div>
             </div>
             <div class="field full">
@@ -153,6 +156,29 @@
           </div>
         </form>
       </section>
+
+      <div class="modal-backdrop" id="formDivisionModal" hidden>
+        <section class="panel modal-panel" role="dialog" aria-modal="true" aria-labelledby="formDivisionModalTitle">
+          <div class="modal-header">
+            <div>
+              <p class="eyebrow">Manage options</p>
+              <h2 id="formDivisionModalTitle">Edit Divisions</h2>
+            </div>
+            <button class="icon-button compact-button" id="closeFormDivisionModal" type="button">Close</button>
+          </div>
+          <div class="modal-body">
+            <div id="formDivisionOptionList" class="division-option-editor"></div>
+            <div class="division-option-add">
+              <input id="formNewDivisionInput" type="text" placeholder="Add new division">
+              <button class="secondary-button compact-button" id="addFormDivisionOption" type="button">Add</button>
+            </div>
+          </div>
+          <div class="button-row">
+            <button class="primary-button" id="saveFormDivisionOptions" type="button">Save Changes</button>
+            <button class="secondary-button" id="cancelFormDivisionModal" type="button">Cancel</button>
+          </div>
+        </section>
+      </div>
     </template>
 
     <template id="detailTemplate">

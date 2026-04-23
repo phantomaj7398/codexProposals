@@ -307,7 +307,16 @@
     const ocrUpload = document.getElementById("ocrUpload");
     const timelineDateField = document.getElementById("timelineDateField");
     const divisionRows = document.getElementById("divisionRows");
-    const addDivisionRow = document.getElementById("addDivisionRow");
+    const formDivisionPanel = document.getElementById("formDivisionPanel");
+    const formDivisionEmpty = document.getElementById("formDivisionEmpty");
+    const editFormDivisionsButton = document.getElementById("editFormDivisionsButton");
+    const formDivisionModal = document.getElementById("formDivisionModal");
+    const formDivisionOptionList = document.getElementById("formDivisionOptionList");
+    const formNewDivisionInput = document.getElementById("formNewDivisionInput");
+    const addFormDivisionOption = document.getElementById("addFormDivisionOption");
+    const saveFormDivisionOptions = document.getElementById("saveFormDivisionOptions");
+    const cancelFormDivisionModal = document.getElementById("cancelFormDivisionModal");
+    const closeFormDivisionModal = document.getElementById("closeFormDivisionModal");
     const removeImageButton = document.getElementById("removeImageButton");
     const draft = !existing ? loadDraft() : null;
     const data = existing || draft || {};
@@ -324,7 +333,9 @@
     form.elements.notes.value = data.notes || "";
     form.elements.status.value = data.status || "Pending";
     syncTimelineDateVisibility(form, timelineDateField);
-    renderDivisionRows(divisionRows, data.divisions && data.divisions.length ? data.divisions : [emptyDivisionRow()]);
+    renderDivisionRows(divisionRows, data.divisions || []);
+    renderFormDivisionSelector();
+    syncFormDivisionEmptyState();
     updateImagePreview(currentImage);
 
     let autosaveTimer;
@@ -385,19 +396,131 @@
       form.dispatchEvent(new Event("input", { bubbles: true }));
     });
 
-    addDivisionRow.addEventListener("click", () => {
-      appendDivisionRow(divisionRows, emptyDivisionRow());
+    function renderFormDivisionSelector() {
+      const selectedValues = new Set(readDivisions(form).map((row) => row.division).filter(Boolean));
+      renderChoicePanel(formDivisionPanel, divisionOptions, {
+        selectedValues,
+        emptyMessage: "Add division options to start selecting them.",
+        onChange(nextValue) {
+          const nextSelected = new Set(selectedValues);
+          if (nextSelected.has(nextValue)) {
+            nextSelected.delete(nextValue);
+          } else {
+            nextSelected.add(nextValue);
+          }
+          renderDivisionRows(divisionRows, syncProposalDivisions(readDivisions(form), nextSelected));
+          syncFormDivisionEmptyState();
+          renderFormDivisionSelector();
+          form.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+      });
+    }
+
+    function syncFormDivisionEmptyState() {
+      formDivisionEmpty.hidden = readDivisions(form).length > 0;
+    }
+
+    function renderFormDivisionOptionEditor(options) {
+      formDivisionOptionList.innerHTML = "";
+      options.forEach((option) => {
+        const row = document.createElement("div");
+        row.className = "division-option-row";
+        row.dataset.originalOption = option;
+        row.innerHTML = `
+          <input type="text" value="${escapeHtml(option)}" data-division-option-input>
+          <button class="danger-button compact-button" type="button" data-division-option-remove>Delete</button>
+        `;
+        formDivisionOptionList.append(row);
+      });
+    }
+
+    function openFormDivisionModal() {
+      renderFormDivisionOptionEditor(divisionOptions);
+      formNewDivisionInput.value = "";
+      formDivisionModal.hidden = false;
+    }
+
+    function closeFormDivisionEditor() {
+      formDivisionModal.hidden = true;
+    }
+
+    function appendFormDivisionOptionRow(value) {
+      const row = document.createElement("div");
+      row.className = "division-option-row";
+      row.innerHTML = `
+        <input type="text" value="${escapeHtml(value)}" data-division-option-input>
+        <button class="danger-button compact-button" type="button" data-division-option-remove>Delete</button>
+      `;
+      formDivisionOptionList.append(row);
+    }
+
+    function saveFormDivisionOptionChanges() {
+      const currentRows = readDivisions(form);
+      const editedRows = Array.from(formDivisionOptionList.querySelectorAll(".division-option-row")).map((row) => ({
+        original: row.dataset.originalOption || "",
+        current: row.querySelector("[data-division-option-input]").value.trim()
+      }));
+      divisionOptions = normalizeDivisionOptions(editedRows.map((row) => row.current));
+      const renameMap = new Map();
+      editedRows.forEach((row) => {
+        if (row.original && row.current && row.original !== row.current && divisionOptions.includes(row.current)) {
+          renameMap.set(row.original, row.current);
+        }
+      });
+      proposals = proposals.map((item) => ({
+        ...item,
+        divisions: syncProposalDivisions(
+          (item.divisions || []).map((row) => ({
+            ...row,
+            division: renameMap.get(row.division) || row.division
+          })).filter((row) => divisionOptions.includes(row.division)),
+          new Set((item.divisions || [])
+            .map((row) => renameMap.get(row.division) || row.division)
+            .filter((division) => divisionOptions.includes(division)))
+        )
+      }));
+      const nextRows = syncProposalDivisions(
+        currentRows.map((row) => ({
+          ...row,
+          division: renameMap.get(row.division) || row.division
+        })).filter((row) => divisionOptions.includes(row.division)),
+        new Set(currentRows
+          .map((row) => renameMap.get(row.division) || row.division)
+          .filter((division) => divisionOptions.includes(division)))
+      );
+      renderDivisionRows(divisionRows, nextRows);
+      syncStoredDivisionOptions();
+      saveProposals();
+      renderFormDivisionSelector();
+      syncFormDivisionEmptyState();
+      closeFormDivisionEditor();
       form.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+
+    divisionRows.addEventListener("input", () => {
+      syncFormDivisionEmptyState();
     });
 
-    divisionRows.addEventListener("click", (event) => {
-      const removeButton = event.target.closest("[data-remove-row]");
+    editFormDivisionsButton.addEventListener("click", openFormDivisionModal);
+    addFormDivisionOption.addEventListener("click", () => {
+      const value = formNewDivisionInput.value.trim();
+      if (!value) return;
+      appendFormDivisionOptionRow(value);
+      formNewDivisionInput.value = "";
+      formNewDivisionInput.focus();
+    });
+    formDivisionOptionList.addEventListener("click", (event) => {
+      const removeButton = event.target.closest("[data-division-option-remove]");
       if (!removeButton) return;
-      removeButton.closest("tr").remove();
-      if (!divisionRows.children.length) {
-        appendDivisionRow(divisionRows, emptyDivisionRow());
+      removeButton.closest(".division-option-row").remove();
+    });
+    saveFormDivisionOptions.addEventListener("click", saveFormDivisionOptionChanges);
+    cancelFormDivisionModal.addEventListener("click", closeFormDivisionEditor);
+    closeFormDivisionModal.addEventListener("click", closeFormDivisionEditor);
+    formDivisionModal.addEventListener("click", (event) => {
+      if (event.target === formDivisionModal) {
+        closeFormDivisionEditor();
       }
-      form.dispatchEvent(new Event("input", { bubbles: true }));
     });
 
     removeImageButton.addEventListener("click", () => {
@@ -472,28 +595,36 @@
 
   function renderDivisionRows(container, rows) {
     container.innerHTML = "";
+    if (!rows.length) {
+      const tr = document.createElement("tr");
+      tr.className = "division-empty-row";
+      tr.innerHTML = `<td colspan="3">No divisions selected yet.</td>`;
+      container.append(tr);
+      return;
+    }
     rows.forEach((row) => appendDivisionRow(container, row));
   }
 
   function appendDivisionRow(container, row) {
     const tr = document.createElement("tr");
+    tr.dataset.division = row.division;
     tr.innerHTML = `
-      <td><textarea data-division-field="division" rows="2" placeholder="Division">${escapeHtml(row.division)}</textarea></td>
+      <td><span class="division-name">${escapeHtml(row.division)}</span></td>
       <td><textarea data-division-field="comments" rows="2" placeholder="Comments">${escapeHtml(row.comments)}</textarea></td>
       <td><textarea data-division-field="additionalComments" rows="2" placeholder="Additional comments">${escapeHtml(row.additionalComments)}</textarea></td>
-      <td class="action-column"><button class="danger-button small-button" data-remove-row type="button">Remove</button></td>
     `;
     container.append(tr);
   }
 
   function readDivisions(form) {
     return Array.from(form.querySelectorAll("#divisionRows tr"))
+      .filter((row) => row.dataset.division)
       .map((row) => ({
-        division: row.querySelector('[data-division-field="division"]').value.trim(),
+        division: String(row.dataset.division || "").trim(),
         comments: row.querySelector('[data-division-field="comments"]').value.trim(),
         additionalComments: row.querySelector('[data-division-field="additionalComments"]').value.trim()
       }))
-      .filter((row) => row.division || row.comments || row.additionalComments);
+      .filter((row) => row.division);
   }
 
   function syncTimelineDateVisibility(form, container) {
