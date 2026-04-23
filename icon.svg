@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Proposal Manager icon">
+  <rect width="512" height="512" rx="112" fill="#5f9a8b"/>
+  <path d="M116 94h280c22 0 40 18 40 40v244c0 22-18 40-40 40H116c-22 0-40-18-40-40V134c0-22 18-40 40-40Z" fill="#fffdf7"/>
+  <path d="M132 160h248M132 220h190M132 280h248M132 340h136" stroke="#243b35" stroke-width="24" stroke-linecap="round"/>
+  <circle cx="364" cy="342" r="52" fill="#b3833b"/>
+  <path d="M342 342h44M364 320v44" stroke="#fffaf1" stroke-width="18" stroke-linecap="round"/>
+</svg>

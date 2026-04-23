@@ -1,0 +1,37 @@
+{
+  "name": "Proposal Manager",
+  "short_name": "Proposals",
+  "description": "Create, edit, manage, and export business proposals from a mobile-friendly PWA.",
+  "id": "./index.html",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "background_color": "#f4f7f2",
+  "theme_color": "#5f9a8b",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Proposal",
+      "short_name": "New",
+      "description": "Create a new proposal",
+      "url": "./index.html#/new",
+      "icons": [
+        {
+          "src": "icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ]
+}

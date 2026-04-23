@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0F2027">
+    <meta name="description" content="Create, manage, and export client-ready business proposals.">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Proposal Manager">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Proposal Manager</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icon.svg">
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#/">
+          <span class="brand-mark">PM</span>
+          <span>
+            <strong>Proposal Manager</strong>
+            <small>Client-ready proposals, faster</small>
+          </span>
+        </a>
+        <div class="topbar-actions">
+          <button class="icon-button" id="backupButton" type="button" title="Download JSON backup">Backup</button>
+          <label class="icon-button import-button" title="Import JSON backup">
+            Import
+            <input id="importInput" type="file" accept="application/json,.json">
+          </label>
+        </div>
+      </header>
+
+      <main id="app" class="page" aria-live="polite"></main>
+    </div>
+
+    <template id="dashboardTemplate">
+      <section class="panel controls-panel">
+        <div class="field search-field">
+          <label for="searchInput">Search</label>
+          <input id="searchInput" type="search" placeholder="Search title, description, notes, or divisions">
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <div id="statusFilterPanel" class="choice-panel choice-panel-inline" aria-label="Status filters"></div>
+        </div>
+        <div class="field">
+          <label>Sort</label>
+          <div id="sortPanel" class="choice-panel choice-panel-grid" aria-label="Sort proposals"></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-heading">
+          <h2>Proposals</h2>
+          <span id="resultCount">0 shown</span>
+        </div>
+        <div id="proposalList" class="proposal-grid"></div>
+        <div id="emptyState" class="empty-state" hidden>
+          <h3>No proposals yet</h3>
+          <p>Create your first proposal and it will appear here automatically.</p>
+          <a class="primary-button" href="#/new">Create Proposal</a>
+        </div>
+      </section>
+
+      <a class="fab" href="#/new" aria-label="Add Proposal">+</a>
+    </template>
+
+    <template id="formTemplate">
+      <section class="panel form-panel">
+        <div class="form-header">
+          <div>
+            <p class="eyebrow" id="formMode">New proposal</p>
+            <h1 id="formTitle">Create Proposal</h1>
+          </div>
+          <span id="autosaveState" class="autosave-pill">Autosave ready</span>
+        </div>
+
+        <form id="proposalForm">
+          <div class="form-grid">
+            <div class="field full">
+              <label for="title">Proposal Title</label>
+              <input id="title" name="title" type="text" placeholder="Website redesign proposal" required>
+            </div>
+            <div class="field">
+              <label for="status">Status</label>
+              <select id="status" name="status">
+                <option>Pending</option>
+                <option>Completed</option>
+                <option>For information only</option>
+              </select>
+            </div>
+            <div class="field full">
+              <label for="description">Project Description</label>
+              <textarea id="description" name="description" rows="6" placeholder="Describe the problem, proposed solution, scope, and outcomes."></textarea>
+            </div>
+            <div class="field">
+              <label for="timelineType">Timeline</label>
+              <select id="timelineType" name="timelineType">
+                <option value="none">No fixed date</option>
+                <option value="date">Choose a date</option>
+              </select>
+            </div>
+            <div class="field" id="timelineDateField" hidden>
+              <label for="timelineDate">Timeline Date</label>
+              <input id="timelineDate" name="timelineDate" type="date">
+            </div>
+            <div class="field full">
+              <label for="notes">Notes</label>
+              <textarea id="notes" name="notes" rows="4" placeholder="Internal notes, assumptions, next steps, or reminders."></textarea>
+            </div>
+            <div class="field full">
+              <label>Divisions Table</label>
+              <div class="table-editor">
+                <div class="division-table-wrap">
+                  <table class="division-table" aria-label="Proposal divisions">
+                    <thead>
+                      <tr>
+                        <th>Divisions</th>
+                        <th>Comments</th>
+                        <th>Additional Comments</th>
+                        <th class="action-column">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="divisionRows"></tbody>
+                  </table>
+                </div>
+                <button class="secondary-button" id="addDivisionRow" type="button">Add Row</button>
+              </div>
+            </div>
+            <div class="field full">
+              <label for="ocrUpload">OCR Upload (optional)</label>
+              <input id="ocrUpload" type="file" accept="image/*">
+              <small class="hint">Uses Tesseract.js in your browser to extract English text from images. No backend is required.</small>
+            </div>
+            <div class="field full">
+              <label>Saved Image</label>
+              <figure class="image-preview" id="imagePreview" hidden>
+                <img id="proposalImagePreview" alt="Uploaded proposal reference">
+                <figcaption id="proposalImageName"></figcaption>
+              </figure>
+              <button class="danger-button" id="removeImageButton" type="button" hidden>Remove Image</button>
+            </div>
+          </div>
+
+          <div class="button-row">
+            <button class="primary-button" type="submit">Save Proposal</button>
+            <a class="secondary-button" href="#/">Cancel</a>
+            <button class="danger-button" id="deleteFromForm" type="button" hidden>Delete</button>
+          </div>
+        </form>
+      </section>
+    </template>
+
+    <template id="detailTemplate">
+      <article class="proposal-document" id="proposalDocument">
+        <header class="document-header">
+          <h1 id="detailTitle"></h1>
+          <span id="detailDate"></span>
+        </header>
+
+        <section id="detailTableSection" hidden>
+          <h3>Divisions</h3>
+          <div class="detail-division-controls">
+            <div id="detailDivisionPanel" class="choice-panel choice-panel-divisions" aria-label="Select divisions"></div>
+            <button class="secondary-button compact-button" id="editDivisionsButton" type="button">Edit Divisions</button>
+          </div>
+          <div class="division-table-wrap">
+            <table class="division-table document-table">
+              <thead>
+                <tr>
+                  <th>Divisions</th>
+                  <th>Comments</th>
+                  <th>Additional Comments</th>
+                </tr>
+              </thead>
+              <tbody id="detailDivisionRows"></tbody>
+            </table>
+          </div>
+          <p id="detailDivisionEmpty" class="hint" hidden>Select divisions to show them in the table.</p>
+        </section>
+
+        <section id="detailImageSection" hidden>
+          <img id="detailImage" class="document-image" alt="Uploaded proposal reference">
+        </section>
+
+        <section>
+          <h3>OCR Extracted Text</h3>
+          <p id="detailDescription"></p>
+        </section>
+      </article>
+
+      <nav class="detail-actions">
+        <a class="secondary-button" href="#/">Back</a>
+        <a class="primary-button" id="editDetailButton" href="#">Edit</a>
+        <button class="secondary-button" id="pdfButton" type="button">Export as PDF</button>
+        <button class="danger-button" id="deleteDetailButton" type="button">Delete</button>
+      </nav>
+
+      <div class="modal-backdrop" id="divisionModal" hidden>
+        <section class="panel modal-panel" role="dialog" aria-modal="true" aria-labelledby="divisionModalTitle">
+          <div class="modal-header">
+            <div>
+              <p class="eyebrow">Manage options</p>
+              <h2 id="divisionModalTitle">Edit Divisions</h2>
+            </div>
+            <button class="icon-button compact-button" id="closeDivisionModal" type="button">Close</button>
+          </div>
+          <div class="modal-body">
+            <div id="divisionOptionList" class="division-option-editor"></div>
+            <div class="division-option-add">
+              <input id="newDivisionInput" type="text" placeholder="Add new division">
+              <button class="secondary-button compact-button" id="addDivisionOption" type="button">Add</button>
+            </div>
+          </div>
+          <div class="button-row">
+            <button class="primary-button" id="saveDivisionOptions" type="button">Save Changes</button>
+            <button class="secondary-button" id="cancelDivisionModal" type="button">Cancel</button>
+          </div>
+        </section>
+      </div>
+    </template>
+
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
