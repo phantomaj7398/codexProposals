@@ -190,10 +190,6 @@
 
         <section id="detailTableSection" hidden>
           <h3>Divisions</h3>
-          <div class="detail-division-controls">
-            <div id="detailDivisionPanel" class="choice-panel choice-panel-divisions" aria-label="Select divisions"></div>
-            <button class="secondary-button compact-button" id="editDivisionsButton" type="button">Edit Divisions</button>
-          </div>
           <div class="division-table-wrap">
             <table class="division-table document-table">
               <thead>
@@ -206,7 +202,7 @@
               <tbody id="detailDivisionRows"></tbody>
             </table>
           </div>
-          <p id="detailDivisionEmpty" class="hint" hidden>Select divisions to show them in the table.</p>
+          <p id="detailDivisionEmpty" class="hint" hidden>No divisions selected.</p>
         </section>
 
         <section id="detailImageSection" hidden>
@@ -225,29 +221,6 @@
         <button class="secondary-button" id="pdfButton" type="button">Export as PDF</button>
         <button class="danger-button" id="deleteDetailButton" type="button">Delete</button>
       </nav>
-
-      <div class="modal-backdrop" id="divisionModal" hidden>
-        <section class="panel modal-panel" role="dialog" aria-modal="true" aria-labelledby="divisionModalTitle">
-          <div class="modal-header">
-            <div>
-              <p class="eyebrow">Manage options</p>
-              <h2 id="divisionModalTitle">Edit Divisions</h2>
-            </div>
-            <button class="icon-button compact-button" id="closeDivisionModal" type="button">Close</button>
-          </div>
-          <div class="modal-body">
-            <div id="divisionOptionList" class="division-option-editor"></div>
-            <div class="division-option-add">
-              <input id="newDivisionInput" type="text" placeholder="Add new division">
-              <button class="secondary-button compact-button" id="addDivisionOption" type="button">Add</button>
-            </div>
-          </div>
-          <div class="button-row">
-            <button class="primary-button" id="saveDivisionOptions" type="button">Save Changes</button>
-            <button class="secondary-button" id="cancelDivisionModal" type="button">Cancel</button>
-          </div>
-        </section>
-      </div>
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>

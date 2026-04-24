@@ -723,17 +723,8 @@
     }
 
     const detailTableSection = document.getElementById("detailTableSection");
-    const detailDivisionPanel = document.getElementById("detailDivisionPanel");
     const detailDivisionRows = document.getElementById("detailDivisionRows");
     const detailDivisionEmpty = document.getElementById("detailDivisionEmpty");
-    const editDivisionsButton = document.getElementById("editDivisionsButton");
-    const divisionModal = document.getElementById("divisionModal");
-    const divisionOptionList = document.getElementById("divisionOptionList");
-    const newDivisionInput = document.getElementById("newDivisionInput");
-    const addDivisionOption = document.getElementById("addDivisionOption");
-    const saveDivisionOptionsButton = document.getElementById("saveDivisionOptions");
-    const cancelDivisionModal = document.getElementById("cancelDivisionModal");
-    const closeDivisionModal = document.getElementById("closeDivisionModal");
 
     detailTableSection.hidden = false;
 
@@ -750,123 +741,7 @@
       detailDivisionEmpty.hidden = selectedRows.length > 0;
     }
 
-    function renderDivisionSelector() {
-      const selectedValues = new Set((proposal.divisions || []).map((row) => row.division).filter(Boolean));
-      renderChoicePanel(detailDivisionPanel, divisionOptions, {
-        selectedValues,
-        multiple: true,
-        emptyMessage: "Add division options to start selecting them.",
-        onChange(nextValue) {
-          const nextSelected = new Set(selectedValues);
-          if (nextSelected.has(nextValue)) {
-            nextSelected.delete(nextValue);
-          } else {
-            nextSelected.add(nextValue);
-          }
-          proposal.divisions = syncProposalDivisions(proposal.divisions || [], nextSelected);
-          proposal.updatedAt = todayISO();
-          saveProposals();
-          renderDivisionSelector();
-          renderDivisionTable();
-        }
-      });
-    }
-
-    function renderDivisionOptionEditor(options) {
-      divisionOptionList.innerHTML = "";
-      options.forEach((option) => {
-        const row = document.createElement("div");
-        row.className = "division-option-row";
-        row.dataset.originalOption = option;
-        row.innerHTML = `
-          <input type="text" value="${escapeHtml(option)}" data-division-option-input>
-          <button class="danger-button compact-button" type="button" data-division-option-remove>Delete</button>
-        `;
-        divisionOptionList.append(row);
-      });
-    }
-
-    function openDivisionModal() {
-      renderDivisionOptionEditor(divisionOptions);
-      newDivisionInput.value = "";
-      divisionModal.hidden = false;
-    }
-
-    function closeDivisionEditor() {
-      divisionModal.hidden = true;
-    }
-
-    function appendDivisionOptionEditorRow(value) {
-      const row = document.createElement("div");
-      row.className = "division-option-row";
-      row.innerHTML = `
-        <input type="text" value="${escapeHtml(value)}" data-division-option-input>
-        <button class="danger-button compact-button" type="button" data-division-option-remove>Delete</button>
-      `;
-      divisionOptionList.append(row);
-    }
-
-    function saveDivisionOptionChanges() {
-      const editedRows = Array.from(divisionOptionList.querySelectorAll(".division-option-row")).map((row) => ({
-        original: row.dataset.originalOption || "",
-        current: row.querySelector("[data-division-option-input]").value.trim()
-      }));
-      divisionOptions = normalizeDivisionOptions(editedRows.map((row) => row.current));
-      const renameMap = new Map();
-      editedRows.forEach((row) => {
-        if (row.original && row.current && row.original !== row.current && divisionOptions.includes(row.current)) {
-          renameMap.set(row.original, row.current);
-        }
-      });
-      proposals = proposals.map((item) => ({
-        ...item,
-        divisions: syncProposalDivisions(
-          (item.divisions || []).map((row) => ({
-            ...row,
-            division: renameMap.get(row.division) || row.division
-          })).filter((row) => divisionOptions.includes(row.division)),
-          new Set((item.divisions || [])
-            .map((row) => renameMap.get(row.division) || row.division)
-            .filter((division) => divisionOptions.includes(division)))
-        )
-      }));
-      const refreshedProposal = getProposal(proposal.id);
-      if (refreshedProposal) {
-        proposal.divisions = refreshedProposal.divisions;
-        proposal.updatedAt = todayISO();
-        refreshedProposal.updatedAt = proposal.updatedAt;
-      }
-      syncStoredDivisionOptions();
-      saveProposals();
-      renderDivisionSelector();
-      renderDivisionTable();
-      closeDivisionEditor();
-    }
-
-    renderDivisionSelector();
     renderDivisionTable();
-
-    editDivisionsButton.addEventListener("click", openDivisionModal);
-    addDivisionOption.addEventListener("click", () => {
-      const value = newDivisionInput.value.trim();
-      if (!value) return;
-      appendDivisionOptionEditorRow(value);
-      newDivisionInput.value = "";
-      newDivisionInput.focus();
-    });
-    divisionOptionList.addEventListener("click", (event) => {
-      const removeButton = event.target.closest("[data-division-option-remove]");
-      if (!removeButton) return;
-      removeButton.closest(".division-option-row").remove();
-    });
-    saveDivisionOptionsButton.addEventListener("click", saveDivisionOptionChanges);
-    cancelDivisionModal.addEventListener("click", closeDivisionEditor);
-    closeDivisionModal.addEventListener("click", closeDivisionEditor);
-    divisionModal.addEventListener("click", (event) => {
-      if (event.target === divisionModal) {
-        closeDivisionEditor();
-      }
-    });
 
     document.getElementById("editDetailButton").href = "#/edit/" + encodeURIComponent(proposal.id);
     document.getElementById("pdfButton").addEventListener("click", () => window.print());
