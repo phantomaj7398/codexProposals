@@ -714,8 +714,12 @@ textarea {
 }
 
 .modal-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(560px, 100%);
+  max-height: calc(100dvh - 32px);
   margin-top: 0;
+  overflow: hidden;
 }
 
 .modal-header,
@@ -739,12 +743,19 @@ textarea {
 
 .modal-body {
   display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: 12px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .division-option-editor {
   display: grid;
+  align-content: start;
   gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .division-option-row input,
@@ -807,6 +818,14 @@ textarea {
   .controls-panel,
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .modal-backdrop {
+    padding: 10px;
+  }
+
+  .modal-panel {
+    max-height: calc(100dvh - 20px);
   }
 
   .button-row > * {
