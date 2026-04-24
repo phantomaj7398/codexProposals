@@ -714,6 +714,13 @@
     document.getElementById("detailTitle").textContent = textOrFallback(proposal.title, "Untitled Proposal");
     document.getElementById("detailDescription").textContent = textOrFallback(proposal.description, "No extracted text available.");
 
+    const detailNotesSection = document.getElementById("detailNotesSection");
+    const detailNotes = document.getElementById("detailNotes");
+    if (proposal.notes && proposal.notes.trim()) {
+      detailNotesSection.hidden = false;
+      detailNotes.textContent = proposal.notes;
+    }
+
     const detailImageSection = document.getElementById("detailImageSection");
     const detailImage = document.getElementById("detailImage");
     if (proposal.image && proposal.image.dataUrl) {

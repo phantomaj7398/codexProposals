@@ -317,6 +317,14 @@ label {
   backdrop-filter: blur(12px);
 }
 
+.choice-panel-divisions .choice-chip,
+.choice-panel-divisions .choice-panel-empty {
+  min-height: 34px;
+  padding: 7px 8px;
+  font-size: 11px;
+  border-radius: 10px;
+}
+
 .choice-chip {
   cursor: pointer;
   transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
@@ -759,7 +767,7 @@ textarea {
   }
 
   .choice-panel-divisions {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .detail-division-controls {
