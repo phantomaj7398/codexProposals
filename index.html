@@ -136,16 +136,13 @@
             </div>
             <div class="field full">
               <label for="ocrUpload">OCR Upload (optional)</label>
-              <input id="ocrUpload" type="file" accept="image/*">
-              <small class="hint">Uses Tesseract.js in your browser to extract English text from images. No backend is required.</small>
+              <input id="ocrUpload" type="file" accept="image/*" multiple>
+              <small class="hint">Uses Tesseract.js in your browser to extract English text from images in the order selected. No backend is required.</small>
             </div>
             <div class="field full">
-              <label>Saved Image</label>
-              <figure class="image-preview" id="imagePreview" hidden>
-                <img id="proposalImagePreview" alt="Uploaded proposal reference">
-                <figcaption id="proposalImageName"></figcaption>
-              </figure>
-              <button class="danger-button" id="removeImageButton" type="button" hidden>Remove Image</button>
+              <label>Saved Images</label>
+              <div class="image-preview-grid" id="imagePreview" hidden></div>
+              <button class="danger-button" id="removeImageButton" type="button" hidden>Remove Images</button>
             </div>
           </div>
 
@@ -211,7 +208,7 @@
         </section>
 
         <section id="detailImageSection" hidden>
-          <img id="detailImage" class="document-image" alt="Uploaded proposal reference">
+          <div id="detailImages" class="document-image-grid"></div>
         </section>
 
         <section>

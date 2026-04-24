@@ -224,10 +224,16 @@ label {
   font-size: 0.82rem;
 }
 
+.image-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  max-width: 520px;
+}
+
 .image-preview {
   display: grid;
   gap: 8px;
-  max-width: 420px;
   margin: 0;
 }
 
@@ -293,7 +299,7 @@ label {
 }
 
 .choice-panel-divisions {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .choice-chip,
@@ -623,6 +629,22 @@ textarea {
   max-height: none;
   border-radius: 14px;
   object-fit: contain;
+}
+
+.document-image-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.document-image-item {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.document-image-item figcaption {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .proposal-document h3 {

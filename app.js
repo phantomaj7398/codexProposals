@@ -69,13 +69,15 @@
   function normalizeProposal(proposal) {
     const now = todayISO();
     const divisions = Array.isArray(proposal.divisions) ? proposal.divisions : [];
-    const image = proposal.image && proposal.image.dataUrl
-      ? {
-          name: String(proposal.image.name || "Uploaded image"),
-          type: String(proposal.image.type || "image/*"),
-          dataUrl: String(proposal.image.dataUrl)
-        }
-      : null;
+    const rawImages = Array.isArray(proposal.images) ? proposal.images : (proposal.image ? [proposal.image] : []);
+    const images = rawImages
+      .filter((image) => image && image.dataUrl)
+      .map((image) => ({
+        name: String(image.name || "Uploaded image"),
+        type: String(image.type || "image/*"),
+        dataUrl: String(image.dataUrl)
+      }));
+    const image = images[0] || null;
     const legacyTimeline = String(proposal.timeline || "").trim();
     const inferredDate = /^\d{4}-\d{2}-\d{2}$/.test(legacyTimeline) ? legacyTimeline : "";
     const timelineType = proposal.timelineType === "date" || inferredDate ? "date" : "none";
@@ -92,6 +94,7 @@
         comments: String(row.comments || "").trim(),
         additionalComments: String(row.additionalComments || "").trim()
       })),
+      images,
       image,
       status: normalizeStatus(proposal.status),
       createdAt: proposal.createdAt || now,
@@ -320,7 +323,7 @@
     const removeImageButton = document.getElementById("removeImageButton");
     const draft = !existing ? loadDraft() : null;
     const data = existing || draft || {};
-    let currentImage = data.image || null;
+    let currentImages = normalizeImages(data);
 
     document.getElementById("formMode").textContent = existing ? "Edit proposal" : "New proposal";
     document.getElementById("formTitle").textContent = existing ? "Edit Proposal" : "Create Proposal";
@@ -336,14 +339,14 @@
     renderDivisionRows(divisionRows, data.divisions || []);
     renderFormDivisionSelector();
     syncFormDivisionEmptyState();
-    updateImagePreview(currentImage);
+    updateImagePreview(currentImages);
 
     let autosaveTimer;
     form.addEventListener("input", () => {
       clearTimeout(autosaveTimer);
       autosaveState.textContent = "Saving...";
       autosaveTimer = setTimeout(() => {
-        const formData = readForm(form, currentImage);
+        const formData = readForm(form, currentImages);
         if (existing) {
           Object.assign(existing, formData, { updatedAt: todayISO() });
           saveProposals();
@@ -356,7 +359,7 @@
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
-      const formData = readForm(form, currentImage);
+      const formData = readForm(form, currentImages);
       if (!formData.title) {
         alert("Please add a proposal title.");
         return;
@@ -524,21 +527,22 @@
     });
 
     removeImageButton.addEventListener("click", () => {
-      currentImage = null;
-      updateImagePreview(currentImage);
+      currentImages = [];
+      updateImagePreview(currentImages);
       form.dispatchEvent(new Event("input", { bubbles: true }));
     });
 
     ocrUpload.addEventListener("change", async () => {
-      const file = ocrUpload.files && ocrUpload.files[0];
-      if (!file) return;
+      const files = Array.from(ocrUpload.files || []);
+      if (!files.length) return;
 
       try {
-        currentImage = await createStoredImage(file);
-        updateImagePreview(currentImage);
+        const storedImages = await Promise.all(files.map(createStoredImage));
+        currentImages = currentImages.concat(storedImages);
+        updateImagePreview(currentImages);
         form.dispatchEvent(new Event("input", { bubbles: true }));
       } catch (error) {
-        alert("Could not save that image. Please try a different file.");
+        alert("Could not save those images. Please try different files.");
         ocrUpload.value = "";
         return;
       }
@@ -554,33 +558,38 @@
       ocrUpload.disabled = true;
       autosaveState.textContent = "OCR starting...";
 
-      try {
-        const result = await window.Tesseract.recognize(file, "eng", {
-          logger: (progress) => {
-            if (progress.status === "recognizing text") {
-              const percent = Math.round((progress.progress || 0) * 100);
-              autosaveState.textContent = "OCR " + percent + "%";
-            } else if (progress.status) {
-              autosaveState.textContent = progress.status;
+      const notes = [];
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index];
+        try {
+          const result = await window.Tesseract.recognize(file, "eng", {
+            logger: (progress) => {
+              if (progress.status === "recognizing text") {
+                const percent = Math.round((progress.progress || 0) * 100);
+                autosaveState.textContent = "OCR " + (index + 1) + "/" + files.length + " " + percent + "%";
+              } else if (progress.status) {
+                autosaveState.textContent = "OCR " + (index + 1) + "/" + files.length + " " + progress.status;
+              }
             }
-          }
-        });
-        const extracted = (result.data && result.data.text ? result.data.text : "").trim();
-        const note = extracted
-          ? "\n\n[OCR from " + file.name + "]\n" + extracted
-          : "\n\n[OCR from " + file.name + ": no readable text found.]";
-        form.elements.description.value = (form.elements.description.value || "") + note;
-        form.dispatchEvent(new Event("input", { bubbles: true }));
-      } catch (error) {
-        const failureNote = "\n\n[OCR from " + file.name + " failed. Try a clearer image or check your connection.]";
-        form.elements.description.value = (form.elements.description.value || "") + failureNote;
-        form.dispatchEvent(new Event("input", { bubbles: true }));
-      } finally {
-        ocrUpload.disabled = false;
-        ocrUpload.value = "";
-        if (autosaveState.textContent.startsWith("OCR") || autosaveState.textContent.includes("loading")) {
-          autosaveState.textContent = "OCR complete";
+          });
+          const extracted = (result.data && result.data.text ? result.data.text : "").trim();
+          notes.push(extracted
+            ? "[OCR from " + file.name + "]\n" + extracted
+            : "[OCR from " + file.name + ": no readable text found.]");
+        } catch (error) {
+          notes.push("[OCR from " + file.name + " failed. Try a clearer image or check your connection.]");
         }
+      }
+
+      if (notes.length) {
+        form.elements.description.value = (form.elements.description.value || "") + "\n\n" + notes.join("\n\n");
+        form.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+
+      ocrUpload.disabled = false;
+      ocrUpload.value = "";
+      if (autosaveState.textContent.startsWith("OCR") || autosaveState.textContent.includes("loading")) {
+        autosaveState.textContent = "OCR complete";
       }
     });
   }
@@ -648,25 +657,34 @@
     });
   }
 
-  function updateImagePreview(image) {
-    const preview = document.getElementById("imagePreview");
-    const img = document.getElementById("proposalImagePreview");
-    const name = document.getElementById("proposalImageName");
-    const removeButton = document.getElementById("removeImageButton");
-    const hasImage = Boolean(image && image.dataUrl);
-
-    preview.hidden = !hasImage;
-    removeButton.hidden = !hasImage;
-    if (hasImage) {
-      img.src = image.dataUrl;
-      name.textContent = image.name || "Uploaded image";
-    } else {
-      img.removeAttribute("src");
-      name.textContent = "";
-    }
+  function normalizeImages(source) {
+    const rawImages = Array.isArray(source.images) ? source.images : (source.image ? [source.image] : []);
+    return rawImages
+      .filter((image) => image && image.dataUrl)
+      .map((image) => ({
+        name: String(image.name || "Uploaded image"),
+        type: String(image.type || "image/*"),
+        dataUrl: String(image.dataUrl)
+      }));
   }
 
-  function readForm(form, image) {
+  function updateImagePreview(images) {
+    const preview = document.getElementById("imagePreview");
+    const removeButton = document.getElementById("removeImageButton");
+    const visibleImages = Array.isArray(images) ? images.filter((image) => image && image.dataUrl) : [];
+
+    preview.hidden = !visibleImages.length;
+    removeButton.hidden = !visibleImages.length;
+    preview.innerHTML = visibleImages.map((image) => `
+      <figure class="image-preview">
+        <img src="${escapeHtml(image.dataUrl)}" alt="${escapeHtml(image.name || "Uploaded proposal reference")}">
+        <figcaption>${escapeHtml(image.name || "Uploaded image")}</figcaption>
+      </figure>
+    `).join("");
+  }
+
+  function readForm(form, images) {
+    const normalizedImages = normalizeImages({ images });
     return {
       title: form.elements.title.value.trim(),
       description: form.elements.description.value.trim(),
@@ -674,7 +692,8 @@
       timelineDate: form.elements.timelineType.value === "date" ? form.elements.timelineDate.value : "",
       notes: form.elements.notes.value.trim(),
       divisions: readDivisions(form),
-      image,
+      images: normalizedImages,
+      image: normalizedImages[0] || null,
       status: form.elements.status.value
     };
   }
@@ -721,12 +740,17 @@
       detailNotes.textContent = proposal.notes;
     }
 
+    const detailImages = normalizeImages(proposal);
     const detailImageSection = document.getElementById("detailImageSection");
-    const detailImage = document.getElementById("detailImage");
-    if (proposal.image && proposal.image.dataUrl) {
+    const detailImageList = document.getElementById("detailImages");
+    if (detailImages.length) {
       detailImageSection.hidden = false;
-      detailImage.src = proposal.image.dataUrl;
-      detailImage.alt = proposal.image.name || "Uploaded proposal reference";
+      detailImageList.innerHTML = detailImages.map((image) => `
+        <figure class="document-image-item">
+          <img class="document-image" src="${escapeHtml(image.dataUrl)}" alt="${escapeHtml(image.name || "Uploaded proposal reference")}">
+          <figcaption>${escapeHtml(image.name || "Uploaded image")}</figcaption>
+        </figure>
+      `).join("");
     }
 
     const detailTableSection = document.getElementById("detailTableSection");
