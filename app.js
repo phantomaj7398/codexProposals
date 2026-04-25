@@ -1158,11 +1158,11 @@
   function renderCountriesDetail(row) {
     const countries = normalizeCountries(row.countries);
     return countries.length
-      ? countries.map((country) => `
+      ? `<div class="country-chip-wrap">` + countries.map((country) => `
           <span class="country-chip color-${country.color}">
             ${escapeHtml(country.name)}
           </span>
-        `).join(" ")
+        `).join("") + `</div>`
       : "";
   }
 

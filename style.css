@@ -716,6 +716,10 @@ button.country-chip {
   margin-top: 16px;
 }
 
+.button-row.page-actions {
+  flex-wrap: nowrap;
+}
+
 .page-actions {
   margin: 0 auto 12px;
 }
@@ -1109,6 +1113,10 @@ button.country-chip {
 
   .button-row > * {
     flex: 1 1 100%;
+  }
+
+  .button-row.page-actions {
+    flex-wrap: wrap;
   }
 
   .division-action-row {
