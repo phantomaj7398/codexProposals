@@ -94,19 +94,21 @@
               </select>
             </div>
             <div class="field meta-field date-choice-field">
-              <label for="deadlineMode">Deadline</label>
-              <select id="deadlineMode" name="deadlineMode" data-date-mode="deadline">
-                <option value="none">None</option>
-                <option value="date">Date</option>
-              </select>
+              <label>Deadline</label>
+              <input id="deadlineMode" name="deadlineMode" type="hidden" value="none">
+              <div class="date-toggle" data-date-toggle="deadline" role="group" aria-label="Deadline date selection">
+                <button type="button" data-date-choice="none">No date</button>
+                <button type="button" data-date-choice="date">Date</button>
+              </div>
               <input id="deadline" name="deadline" type="date" hidden>
             </div>
             <div class="field meta-field date-choice-field">
-              <label for="timelineDateMode">Proposal Date</label>
-              <select id="timelineDateMode" name="timelineDateMode" data-date-mode="timelineDate">
-                <option value="none">None</option>
-                <option value="date">Date</option>
-              </select>
+              <label>Proposal Date</label>
+              <input id="timelineDateMode" name="timelineDateMode" type="hidden" value="none">
+              <div class="date-toggle" data-date-toggle="timelineDate" role="group" aria-label="Proposal date selection">
+                <button type="button" data-date-choice="none">No date</button>
+                <button type="button" data-date-choice="date">Date</button>
+              </div>
               <input id="timelineDate" name="timelineDate" type="date" hidden>
             </div>
             <div class="field full">

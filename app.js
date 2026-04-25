@@ -101,6 +101,29 @@
     return status === "For information only" ? "For info..." : status;
   }
 
+  function normalizeStoredImage(image) {
+    if (!image || !image.dataUrl) return null;
+    return {
+      name: String(image.name || "Captured image"),
+      type: String(image.type || "image/*"),
+      size: Number(image.size || 0),
+      originalName: String(image.originalName || ""),
+      originalType: String(image.originalType || ""),
+      originalSize: Number(image.originalSize || 0),
+      width: Number(image.width || 0),
+      height: Number(image.height || 0),
+      compressed: Boolean(image.compressed),
+      dataUrl: String(image.dataUrl || "")
+    };
+  }
+
+  function normalizeCommentStatus(row) {
+    const status = String(row.commentsStatus || row.commentStatus || "").trim();
+    if (["clear", "declined", "partial"].includes(status)) return status;
+    if (String(row.comments || "").trim()) return "partial";
+    return "clear";
+  }
+
   function normalizeProposal(proposal) {
     const now = todayISO();
     const divisions = Array.isArray(proposal.divisions) ? proposal.divisions : [];
@@ -133,11 +156,16 @@
       timelineDate,
       deadline: dateInputValue(proposal.deadline || proposal.dueDate),
       notes: String(proposal.notes || "").trim(),
-      divisions: divisions.map((row) => ({
-        division: String(row.division || row.divisions || "").trim(),
-        comments: String(row.comments || "").trim(),
-        additionalComments: String(row.additionalComments || "").trim()
-      })),
+      divisions: divisions.map((row) => {
+        const additionalPhoto = normalizeStoredImage(row.additionalPhoto);
+        return {
+          division: String(row.division || row.divisions || "").trim(),
+          commentsStatus: normalizeCommentStatus(row),
+          comments: String(row.comments || "").trim(),
+          additionalComments: String(row.additionalComments || "").trim(),
+          additionalPhoto
+        };
+      }),
       images,
       status: normalizeStatus(proposal.status),
       createdAt: proposal.createdAt || now,
@@ -639,6 +667,24 @@
       syncOptionalDate(form, "timelineDate");
       form.dispatchEvent(new Event("input", { bubbles: true }));
     });
+    form.querySelectorAll("[data-date-toggle]").forEach((toggle) => {
+      toggle.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-date-choice]");
+        if (!button) return;
+        const name = toggle.dataset.dateToggle;
+        form.elements[name + "Mode"].value = button.dataset.dateChoice;
+        syncOptionalDate(form, name);
+        if (button.dataset.dateChoice === "date") {
+          const input = form.elements[name];
+          if (typeof input.showPicker === "function") {
+            input.showPicker();
+          } else {
+            input.focus();
+          }
+        }
+        form.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    });
 
     function renderFormDivisionSelector() {
       const selectedValues = new Set(readDivisions(form).map((row) => row.division).filter(Boolean));
@@ -744,6 +790,32 @@
     divisionRows.addEventListener("input", () => {
       syncFormDivisionEmptyState();
     });
+    divisionRows.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-comment-choice]");
+      if (!button) return;
+      const row = button.closest("tr");
+      row.querySelector("[data-division-field='commentsStatus']").value = button.dataset.commentChoice;
+      syncDivisionCommentChoice(row);
+      form.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    divisionRows.addEventListener("change", async (event) => {
+      const input = event.target.closest("[data-division-photo-input]");
+      if (!input) return;
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const row = input.closest("tr");
+      try {
+        const storedImage = await createLocalStoredImage(file);
+        row.querySelector("[data-division-field='additionalPhoto']").value = JSON.stringify(storedImage);
+        renderDivisionPhotoPreview(row, storedImage);
+        form.dispatchEvent(new Event("input", { bubbles: true }));
+      } catch (error) {
+        console.warn("Division photo capture failed", error);
+        alert("Could not save that captured photo. Please try another image.");
+      } finally {
+        input.value = "";
+      }
+    });
 
     editFormDivisionsButton.addEventListener("click", openFormDivisionModal);
     addFormDivisionOption.addEventListener("click", () => {
@@ -845,8 +917,10 @@
   function emptyDivisionRow() {
     return {
       division: "",
+      commentsStatus: "clear",
       comments: "",
-      additionalComments: ""
+      additionalComments: "",
+      additionalPhoto: null
     };
   }
 
@@ -860,6 +934,7 @@
     } else if (!input.value) {
       input.value = todayDateInput();
     }
+    syncDateToggle(form, name);
   }
 
   function setOptionalDate(form, name, value) {
@@ -867,6 +942,15 @@
     form.elements[name + "Mode"].value = normalized ? "date" : "none";
     form.elements[name].value = normalized;
     syncOptionalDate(form, name);
+  }
+
+  function syncDateToggle(form, name) {
+    const value = form.elements[name + "Mode"].value;
+    form.querySelectorAll('[data-date-toggle="' + name + '"] [data-date-choice]').forEach((button) => {
+      const selected = button.dataset.dateChoice === value;
+      button.classList.toggle("selected", selected);
+      button.setAttribute("aria-pressed", selected ? "true" : "false");
+    });
   }
 
   function renderDivisionRows(container, rows) {
@@ -884,23 +968,78 @@
   function appendDivisionRow(container, row) {
     const tr = document.createElement("tr");
     tr.dataset.division = row.division;
+    const commentStatus = normalizeCommentStatus(row);
+    const additionalPhoto = normalizeStoredImage(row.additionalPhoto);
     tr.innerHTML = `
       <td><span class="division-name">${escapeHtml(row.division)}</span></td>
-      <td><textarea data-division-field="comments" rows="2" placeholder="Comments">${escapeHtml(row.comments)}</textarea></td>
-      <td><textarea data-division-field="additionalComments" rows="2" placeholder="Additional comments">${escapeHtml(row.additionalComments)}</textarea></td>
+      <td>
+        <input type="hidden" data-division-field="commentsStatus" value="${escapeHtml(commentStatus)}">
+        <div class="comment-choice-group" role="group" aria-label="Comment status">
+          <button type="button" data-comment-choice="clear">Clear</button>
+          <button type="button" data-comment-choice="declined">Declined</button>
+          <button type="button" data-comment-choice="partial">Partially Declined</button>
+        </div>
+        <textarea data-division-field="comments" rows="2" placeholder="Partial decline note">${escapeHtml(row.comments)}</textarea>
+      </td>
+      <td>
+        <textarea data-division-field="additionalComments" rows="2" placeholder="Additional comments">${escapeHtml(row.additionalComments)}</textarea>
+        <input type="hidden" data-division-field="additionalPhoto" value="${escapeHtml(additionalPhoto ? JSON.stringify(additionalPhoto) : "")}">
+        <div class="division-photo-tools">
+          <label class="secondary-button compact-button">
+            Capture Photo
+            <input type="file" accept="image/*" capture="environment" data-division-photo-input>
+          </label>
+          <div class="division-photo-preview" data-division-photo-preview></div>
+        </div>
+      </td>
     `;
     container.append(tr);
+    syncDivisionCommentChoice(tr);
+    renderDivisionPhotoPreview(tr, additionalPhoto);
   }
 
   function readDivisions(form) {
     return Array.from(form.querySelectorAll("#divisionRows tr"))
       .filter((row) => row.dataset.division)
-      .map((row) => ({
-        division: String(row.dataset.division || "").trim(),
-        comments: row.querySelector('[data-division-field="comments"]').value.trim(),
-        additionalComments: row.querySelector('[data-division-field="additionalComments"]').value.trim()
-      }))
+      .map((row) => {
+        const additionalPhotoValue = row.querySelector('[data-division-field="additionalPhoto"]').value;
+        let additionalPhoto = null;
+        try {
+          additionalPhoto = normalizeStoredImage(JSON.parse(additionalPhotoValue || "null"));
+        } catch (error) {
+          additionalPhoto = null;
+        }
+        return {
+          division: String(row.dataset.division || "").trim(),
+          commentsStatus: row.querySelector('[data-division-field="commentsStatus"]').value,
+          comments: row.querySelector('[data-division-field="comments"]').value.trim(),
+          additionalComments: row.querySelector('[data-division-field="additionalComments"]').value.trim(),
+          additionalPhoto
+        };
+      })
       .filter((row) => row.division);
+  }
+
+  function syncDivisionCommentChoice(row) {
+    const status = row.querySelector('[data-division-field="commentsStatus"]').value || "clear";
+    const note = row.querySelector('[data-division-field="comments"]');
+    row.querySelectorAll("[data-comment-choice]").forEach((button) => {
+      const selected = button.dataset.commentChoice === status;
+      button.classList.toggle("selected", selected);
+      button.setAttribute("aria-pressed", selected ? "true" : "false");
+    });
+    note.hidden = status !== "partial";
+    if (status !== "partial") {
+      note.value = "";
+    }
+  }
+
+  function renderDivisionPhotoPreview(row, image) {
+    const preview = row.querySelector("[data-division-photo-preview]");
+    if (!preview) return;
+    preview.innerHTML = image && image.dataUrl
+      ? `<figure class="division-photo-thumb"><img src="${escapeHtml(image.dataUrl)}" alt="${escapeHtml(image.name || "Captured division photo")}"><figcaption>${escapeHtml(image.name || "Captured photo")}</figcaption></figure>`
+      : "";
   }
 
   function createLocalStoredImage(file) {
@@ -1091,8 +1230,8 @@
       detailDivisionRows.innerHTML = selectedRows.map((row) => `
         <tr>
           <td>${escapeHtml(row.division)}</td>
-          <td>${escapeHtml(row.comments)}</td>
-          <td>${escapeHtml(row.additionalComments)}</td>
+          <td>${renderDivisionCommentDetail(row)}</td>
+          <td>${renderAdditionalCommentDetail(row)}</td>
         </tr>
       `).join("");
       detailDivisionEmpty.hidden = selectedRows.length > 0;
