@@ -72,18 +72,17 @@
 
     <template id="formTemplate">
       <section class="panel form-panel">
-        <div class="form-header">
-          <div>
-            <p class="eyebrow" id="formMode">New proposal</p>
-            <h1 id="formTitle">Create Proposal</h1>
-          </div>
-          <span id="autosaveState" class="autosave-pill">Autosave ready</span>
-        </div>
-
         <form id="proposalForm">
+          <div class="button-row page-actions">
+            <button class="primary-button" type="submit">Save Proposal</button>
+            <a class="secondary-button" href="#/">Cancel</a>
+            <button class="danger-button" id="deleteFromForm" type="button" hidden>Delete</button>
+          </div>
+          <span id="autosaveState" class="autosave-pill visually-hidden" aria-live="polite">Autosave ready</span>
+
           <div class="form-grid">
             <div class="field full">
-              <label for="title">Proposal Title</label>
+              <label for="title">Name</label>
               <input id="title" name="title" type="text" placeholder="Website redesign proposal" required>
             </div>
             <div class="field">
@@ -94,24 +93,13 @@
                 <option>For information only</option>
               </select>
             </div>
-            <div class="field full">
-              <label for="description">Project Description</label>
-              <textarea id="description" name="description" rows="6" placeholder="Describe the problem, proposed solution, scope, and outcomes."></textarea>
+            <div class="field">
+              <label for="deadline">Deadline</label>
+              <input id="deadline" name="deadline" type="date" required>
             </div>
             <div class="field">
-              <label for="timelineType">Timeline</label>
-              <select id="timelineType" name="timelineType">
-                <option value="none">No fixed date</option>
-                <option value="date">Choose a date</option>
-              </select>
-            </div>
-            <div class="field" id="timelineDateField" hidden>
-              <label for="timelineDate">Timeline Date</label>
+              <label for="timelineDate">Date</label>
               <input id="timelineDate" name="timelineDate" type="date">
-            </div>
-            <div class="field full">
-              <label for="notes">Notes</label>
-              <textarea id="notes" name="notes" rows="4" placeholder="Internal notes, assumptions, next steps, or reminders."></textarea>
             </div>
             <div class="field full">
               <label>Divisions Table</label>
@@ -135,22 +123,27 @@
                 <p id="formDivisionEmpty" class="hint" hidden>Select divisions above to add them to the table.</p>
               </div>
             </div>
-            <div class="field full">
+            <div class="field upload-field">
               <label for="ocrUpload">OCR Upload (optional)</label>
               <input id="ocrUpload" type="file" accept="image/*" multiple>
-              <small class="hint">Uses Tesseract.js in your browser to extract English text from images in the order selected. No backend is required.</small>
+            </div>
+            <div class="field upload-field">
+              <label for="cameraCapture">Camera Capture (optional)</label>
+              <input id="cameraCapture" type="file" accept="image/*" capture="environment">
             </div>
             <div class="field full">
               <label>Saved Images</label>
               <div class="image-preview-grid" id="imagePreview" hidden></div>
               <button class="danger-button" id="removeImageButton" type="button" hidden>Remove Images</button>
             </div>
-          </div>
-
-          <div class="button-row">
-            <button class="primary-button" type="submit">Save Proposal</button>
-            <a class="secondary-button" href="#/">Cancel</a>
-            <button class="danger-button" id="deleteFromForm" type="button" hidden>Delete</button>
+            <div class="field full">
+              <label for="notes">Notes</label>
+              <textarea id="notes" name="notes" rows="4" placeholder="Internal notes, assumptions, next steps, or reminders."></textarea>
+            </div>
+            <div class="field full">
+              <label for="description">OCR Extracted Text</label>
+              <textarea id="description" name="description" rows="6" placeholder="Extracted text will appear here after OCR."></textarea>
+            </div>
           </div>
         </form>
       </section>
@@ -180,11 +173,33 @@
     </template>
 
     <template id="detailTemplate">
+      <nav class="detail-actions page-actions">
+        <a class="secondary-button" href="#/">Back</a>
+        <a class="primary-button" id="editDetailButton" href="#">Edit</a>
+        <button class="secondary-button" id="pdfButton" type="button">Export</button>
+        <button class="danger-button" id="deleteDetailButton" type="button">Delete</button>
+      </nav>
+
       <article class="proposal-document" id="proposalDocument">
-        <header class="document-header">
+        <section class="document-field document-name">
+          <span>Name</span>
           <h1 id="detailTitle"></h1>
-          <span id="detailDate"></span>
-        </header>
+        </section>
+
+        <section class="document-meta-grid">
+          <div class="document-field">
+            <span>Status</span>
+            <p id="detailStatus"></p>
+          </div>
+          <div class="document-field">
+            <span>Deadline</span>
+            <p id="detailDeadline"></p>
+          </div>
+          <div class="document-field">
+            <span>Date</span>
+            <p id="detailDate"></p>
+          </div>
+        </section>
 
         <section id="detailTableSection" hidden>
           <h3>Divisions</h3>
@@ -203,13 +218,14 @@
           <p id="detailDivisionEmpty" class="hint" hidden>No divisions selected.</p>
         </section>
 
+        <section id="detailImageSection" hidden>
+          <h3>Saved Images</h3>
+          <div id="detailImages" class="document-image-grid"></div>
+        </section>
+
         <section id="detailNotesSection" hidden>
           <h3>Notes</h3>
           <p id="detailNotes"></p>
-        </section>
-
-        <section id="detailImageSection" hidden>
-          <div id="detailImages" class="document-image-grid"></div>
         </section>
 
         <section>
@@ -217,13 +233,6 @@
           <p id="detailDescription"></p>
         </section>
       </article>
-
-      <nav class="detail-actions">
-        <a class="secondary-button" href="#/">Back</a>
-        <a class="primary-button" id="editDetailButton" href="#">Edit</a>
-        <button class="secondary-button" id="pdfButton" type="button">Export as PDF</button>
-        <button class="danger-button" id="deleteDetailButton" type="button">Delete</button>
-      </nav>
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>

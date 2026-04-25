@@ -52,12 +52,31 @@
     return new Date().toISOString();
   }
 
+  function dateInputValue(value) {
+    if (!value) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return String(value);
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
+  }
+
+  function todayDateInput() {
+    return dateInputValue(todayISO());
+  }
+
   function formatDate(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
     return new Intl.DateTimeFormat(undefined, {
       year: "numeric",
       month: "short",
       day: "numeric"
-    }).format(new Date(value));
+    }).format(date);
+  }
+
+  function formatDateInput(value, fallback) {
+    const normalized = dateInputValue(value);
+    if (!normalized) return fallback || "";
+    return formatDate(normalized + "T00:00:00");
   }
 
   function escapeHtml(value) {
@@ -102,14 +121,17 @@
       }));
     const legacyTimeline = String(proposal.timeline || "").trim();
     const inferredDate = /^\d{4}-\d{2}-\d{2}$/.test(legacyTimeline) ? legacyTimeline : "";
-    const timelineType = proposal.timelineType === "date" || inferredDate ? "date" : "none";
+    const incomingTimelineDate = dateInputValue(proposal.timelineDate || inferredDate);
+    const timelineType = proposal.timelineType === "date" || incomingTimelineDate ? "date" : "none";
+    const timelineDate = timelineType === "date" ? incomingTimelineDate : "";
 
     return {
       id: proposal.id || uid(),
       title: String(proposal.title || "").trim(),
       description: String(proposal.description || "").trim(),
       timelineType,
-      timelineDate: timelineType === "date" ? String(proposal.timelineDate || inferredDate).trim() : "",
+      timelineDate,
+      deadline: dateInputValue(proposal.deadline || proposal.dueDate),
       notes: String(proposal.notes || "").trim(),
       divisions: divisions.map((row) => ({
         division: String(row.division || row.divisions || "").trim(),
@@ -444,6 +466,7 @@
         const searchable = [
           proposal.title,
           proposal.description,
+          proposal.deadline,
           proposal.timelineDate,
           proposal.notes,
           ...proposal.divisions.flatMap((row) => [
@@ -476,7 +499,7 @@
             <span class="status-badge ${statusClass(proposal.status)}">${escapeHtml(proposal.status)}</span>
           </div>
           <div class="proposal-meta">
-            <span>${formatDate(proposal.updatedAt)}</span>
+            <span>${proposal.deadline ? "Deadline " + formatDateInput(proposal.deadline) : formatDate(proposal.updatedAt)}</span>
           </div>
         `;
         proposalList.append(card);
@@ -502,7 +525,7 @@
     const autosaveState = document.getElementById("autosaveState");
     const deleteButton = document.getElementById("deleteFromForm");
     const ocrUpload = document.getElementById("ocrUpload");
-    const timelineDateField = document.getElementById("timelineDateField");
+    const cameraCapture = document.getElementById("cameraCapture");
     const divisionRows = document.getElementById("divisionRows");
     const formDivisionPanel = document.getElementById("formDivisionPanel");
     const formDivisionEmpty = document.getElementById("formDivisionEmpty");
@@ -521,17 +544,14 @@
     let currentImages = normalizeImages(data);
     let formHasUserInput = false;
 
-    document.getElementById("formMode").textContent = existing ? "Edit proposal" : "New proposal";
-    document.getElementById("formTitle").textContent = existing ? "Edit Proposal" : "Create Proposal";
     deleteButton.hidden = !existing;
 
     form.elements.title.value = data.title || "";
     form.elements.description.value = data.description || "";
-    form.elements.timelineType.value = data.timelineType || "none";
-    form.elements.timelineDate.value = data.timelineDate || "";
+    form.elements.deadline.value = data.deadline || "";
+    form.elements.timelineDate.value = data.timelineDate || dateInputValue(data.createdAt) || todayDateInput();
     form.elements.notes.value = data.notes || "";
     form.elements.status.value = data.status || "Pending";
-    syncTimelineDateVisibility(form, timelineDateField);
     renderDivisionRows(divisionRows, data.divisions || []);
     renderFormDivisionSelector();
     syncFormDivisionEmptyState();
@@ -543,12 +563,11 @@
         const nextDraft = normalizeProposal(remoteDraft);
         form.elements.title.value = nextDraft.title || "";
         form.elements.description.value = nextDraft.description || "";
-        form.elements.timelineType.value = nextDraft.timelineType || "none";
-        form.elements.timelineDate.value = nextDraft.timelineDate || "";
+        form.elements.deadline.value = nextDraft.deadline || "";
+        form.elements.timelineDate.value = nextDraft.timelineDate || dateInputValue(nextDraft.createdAt) || todayDateInput();
         form.elements.notes.value = nextDraft.notes || "";
         form.elements.status.value = nextDraft.status || "Pending";
         currentImages = normalizeImages(nextDraft);
-        syncTimelineDateVisibility(form, timelineDateField);
         renderDivisionRows(divisionRows, nextDraft.divisions || []);
         renderFormDivisionSelector();
         syncFormDivisionEmptyState();
@@ -585,8 +604,8 @@
         alert("Please add a proposal title.");
         return;
       }
-      if (formData.timelineType === "date" && !formData.timelineDate) {
-        alert("Please choose a timeline date or select no fixed date.");
+      if (!formData.deadline) {
+        alert("Please choose a deadline date.");
         return;
       }
 
@@ -615,11 +634,6 @@
         saveProposals();
         navigate("#/");
       }
-    });
-
-    form.elements.timelineType.addEventListener("change", () => {
-      syncTimelineDateVisibility(form, timelineDateField);
-      form.dispatchEvent(new Event("input", { bubbles: true }));
     });
 
     function renderFormDivisionSelector() {
@@ -755,8 +769,8 @@
       form.dispatchEvent(new Event("input", { bubbles: true }));
     });
 
-    ocrUpload.addEventListener("change", async () => {
-      const files = Array.from(ocrUpload.files || []);
+    async function processOcrFiles(input) {
+      const files = Array.from(input.files || []);
       if (!files.length) return;
 
       try {
@@ -768,7 +782,7 @@
       } catch (error) {
         console.warn("Image upload failed", error);
         alert("Could not save those images. Please try different files.");
-        ocrUpload.value = "";
+        input.value = "";
         return;
       }
 
@@ -776,11 +790,12 @@
         const missingScriptNote = "\n\n[OCR unavailable: Tesseract.js could not be loaded. Check your internet connection, then try again.]";
         form.elements.description.value = (form.elements.description.value || "") + missingScriptNote;
         form.dispatchEvent(new Event("input", { bubbles: true }));
-        ocrUpload.value = "";
+        input.value = "";
         return;
       }
 
       ocrUpload.disabled = true;
+      cameraCapture.disabled = true;
       autosaveState.textContent = "OCR starting...";
 
       const notes = [];
@@ -812,11 +827,15 @@
       }
 
       ocrUpload.disabled = false;
-      ocrUpload.value = "";
+      cameraCapture.disabled = false;
+      input.value = "";
       if (autosaveState.textContent.startsWith("OCR") || autosaveState.textContent.includes("loading")) {
         autosaveState.textContent = "OCR complete";
       }
-    });
+    }
+
+    ocrUpload.addEventListener("change", () => processOcrFiles(ocrUpload));
+    cameraCapture.addEventListener("change", () => processOcrFiles(cameraCapture));
   }
 
   function emptyDivisionRow() {
@@ -859,14 +878,6 @@
         additionalComments: row.querySelector('[data-division-field="additionalComments"]').value.trim()
       }))
       .filter((row) => row.division);
-  }
-
-  function syncTimelineDateVisibility(form, container) {
-    const hasDate = form.elements.timelineType.value === "date";
-    container.hidden = !hasDate;
-    if (!hasDate) {
-      form.elements.timelineDate.value = "";
-    }
   }
 
   function createLocalStoredImage(file) {
@@ -975,11 +986,13 @@
 
   function readForm(form, images) {
     const normalizedImages = normalizeImages({ images });
+    const timelineDate = form.elements.timelineDate.value;
     return {
       title: form.elements.title.value.trim(),
       description: form.elements.description.value.trim(),
-      timelineType: form.elements.timelineType.value,
-      timelineDate: form.elements.timelineType.value === "date" ? form.elements.timelineDate.value : "",
+      timelineType: timelineDate ? "date" : "none",
+      timelineDate,
+      deadline: form.elements.deadline.value,
       notes: form.elements.notes.value.trim(),
       divisions: readDivisions(form),
       images: normalizedImages,
@@ -1017,9 +1030,10 @@
     app.append(document.getElementById("detailTemplate").content.cloneNode(true));
 
     document.title = proposal.title + " - Proposal Manager";
-    const detailDate = document.getElementById("detailDate");
-    detailDate.textContent = formatDate(proposal.updatedAt);
     document.getElementById("detailTitle").textContent = textOrFallback(proposal.title, "Untitled Proposal");
+    document.getElementById("detailStatus").textContent = proposal.status;
+    document.getElementById("detailDeadline").textContent = formatDateInput(proposal.deadline, "No deadline selected");
+    document.getElementById("detailDate").textContent = formatDateInput(proposal.timelineDate, formatDate(proposal.createdAt));
     document.getElementById("detailDescription").textContent = textOrFallback(proposal.description, "No extracted text available.");
 
     const detailNotesSection = document.getElementById("detailNotesSection");
@@ -1050,7 +1064,6 @@
 
     function renderDivisionTable() {
       const selectedRows = (proposal.divisions || []).filter((row) => row.division);
-      detailDate.textContent = formatDate(proposal.updatedAt);
       detailDivisionRows.innerHTML = selectedRows.map((row) => `
         <tr>
           <td>${escapeHtml(row.division)}</td>
