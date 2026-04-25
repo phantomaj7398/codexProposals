@@ -85,7 +85,7 @@
               <label for="title">Name</label>
               <input id="title" name="title" type="text" placeholder="Website redesign proposal" required>
             </div>
-            <div class="field">
+            <div class="field meta-field">
               <label for="status">Status</label>
               <select id="status" name="status">
                 <option>Pending</option>
@@ -93,13 +93,21 @@
                 <option>For information only</option>
               </select>
             </div>
-            <div class="field">
-              <label for="deadline">Deadline</label>
-              <input id="deadline" name="deadline" type="date" required>
+            <div class="field meta-field date-choice-field">
+              <label for="deadlineMode">Deadline</label>
+              <select id="deadlineMode" name="deadlineMode" data-date-mode="deadline">
+                <option value="none">None</option>
+                <option value="date">Date</option>
+              </select>
+              <input id="deadline" name="deadline" type="date" hidden>
             </div>
-            <div class="field">
-              <label for="timelineDate">Date</label>
-              <input id="timelineDate" name="timelineDate" type="date">
+            <div class="field meta-field date-choice-field">
+              <label for="timelineDateMode">Proposal Date</label>
+              <select id="timelineDateMode" name="timelineDateMode" data-date-mode="timelineDate">
+                <option value="none">None</option>
+                <option value="date">Date</option>
+              </select>
+              <input id="timelineDate" name="timelineDate" type="date" hidden>
             </div>
             <div class="field full">
               <label>Divisions Table</label>
@@ -196,7 +204,7 @@
             <p id="detailDeadline"></p>
           </div>
           <div class="document-field">
-            <span>Date</span>
+            <span>Proposal Date</span>
             <p id="detailDate"></p>
           </div>
         </section>

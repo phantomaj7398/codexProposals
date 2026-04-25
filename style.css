@@ -531,6 +531,18 @@ textarea {
   gap: 12px;
 }
 
+.date-choice-field {
+  align-content: start;
+}
+
+.meta-field {
+  align-content: start;
+}
+
+.date-choice-field input {
+  margin-top: 6px;
+}
+
 .button-row {
   margin-top: 16px;
 }
@@ -850,10 +862,53 @@ textarea {
 }
 
 @media (max-width: 760px) {
-  .controls-panel,
+  .controls-panel {
+    grid-template-columns: 1fr;
+  }
+
   .document-meta-grid,
   .form-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    column-gap: 6px;
+  }
+
+  .form-grid .meta-field,
+  .document-meta-grid .document-field {
+    min-width: 0;
+  }
+
+  .form-grid .meta-field {
+    grid-column: auto;
+  }
+
+  .form-grid .meta-field:nth-of-type(2) {
+    grid-column: 1;
+  }
+
+  .form-grid .meta-field:nth-of-type(3) {
+    grid-column: 2;
+  }
+
+  .form-grid .meta-field:nth-of-type(4) {
+    grid-column: 3;
+  }
+
+  .form-grid .upload-field {
+    grid-column: 1 / -1;
+  }
+
+  .meta-field label,
+  .document-field span {
+    font-size: 0.68rem;
+  }
+
+  .meta-field select,
+  .meta-field input,
+  .document-field p {
+    min-height: 38px;
+    padding: 8px 7px;
+    font-size: 12px;
+    border-radius: 11px;
   }
 
   .modal-backdrop {

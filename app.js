@@ -548,8 +548,8 @@
 
     form.elements.title.value = data.title || "";
     form.elements.description.value = data.description || "";
-    form.elements.deadline.value = data.deadline || "";
-    form.elements.timelineDate.value = data.timelineDate || dateInputValue(data.createdAt) || todayDateInput();
+    setOptionalDate(form, "deadline", data.deadline || "");
+    setOptionalDate(form, "timelineDate", data.timelineDate || "");
     form.elements.notes.value = data.notes || "";
     form.elements.status.value = data.status || "Pending";
     renderDivisionRows(divisionRows, data.divisions || []);
@@ -563,8 +563,8 @@
         const nextDraft = normalizeProposal(remoteDraft);
         form.elements.title.value = nextDraft.title || "";
         form.elements.description.value = nextDraft.description || "";
-        form.elements.deadline.value = nextDraft.deadline || "";
-        form.elements.timelineDate.value = nextDraft.timelineDate || dateInputValue(nextDraft.createdAt) || todayDateInput();
+        setOptionalDate(form, "deadline", nextDraft.deadline || "");
+        setOptionalDate(form, "timelineDate", nextDraft.timelineDate || "");
         form.elements.notes.value = nextDraft.notes || "";
         form.elements.status.value = nextDraft.status || "Pending";
         currentImages = normalizeImages(nextDraft);
@@ -604,11 +604,6 @@
         alert("Please add a proposal title.");
         return;
       }
-      if (!formData.deadline) {
-        alert("Please choose a deadline date.");
-        return;
-      }
-
       if (existing) {
         Object.assign(existing, formData, { updatedAt: todayISO() });
         delete existing.draftImageOwnerId;
@@ -634,6 +629,15 @@
         saveProposals();
         navigate("#/");
       }
+    });
+
+    form.elements.deadlineMode.addEventListener("change", () => {
+      syncOptionalDate(form, "deadline");
+      form.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    form.elements.timelineDateMode.addEventListener("change", () => {
+      syncOptionalDate(form, "timelineDate");
+      form.dispatchEvent(new Event("input", { bubbles: true }));
     });
 
     function renderFormDivisionSelector() {
@@ -846,6 +850,25 @@
     };
   }
 
+  function syncOptionalDate(form, name) {
+    const input = form.elements[name];
+    const mode = form.elements[name + "Mode"];
+    const hasDate = mode.value === "date";
+    input.hidden = !hasDate;
+    if (!hasDate) {
+      input.value = "";
+    } else if (!input.value) {
+      input.value = todayDateInput();
+    }
+  }
+
+  function setOptionalDate(form, name, value) {
+    const normalized = dateInputValue(value);
+    form.elements[name + "Mode"].value = normalized ? "date" : "none";
+    form.elements[name].value = normalized;
+    syncOptionalDate(form, name);
+  }
+
   function renderDivisionRows(container, rows) {
     container.innerHTML = "";
     if (!rows.length) {
@@ -986,13 +1009,14 @@
 
   function readForm(form, images) {
     const normalizedImages = normalizeImages({ images });
-    const timelineDate = form.elements.timelineDate.value;
+    const deadline = form.elements.deadlineMode.value === "date" ? form.elements.deadline.value : "";
+    const timelineDate = form.elements.timelineDateMode.value === "date" ? form.elements.timelineDate.value : "";
     return {
       title: form.elements.title.value.trim(),
       description: form.elements.description.value.trim(),
       timelineType: timelineDate ? "date" : "none",
       timelineDate,
-      deadline: form.elements.deadline.value,
+      deadline,
       notes: form.elements.notes.value.trim(),
       divisions: readDivisions(form),
       images: normalizedImages,
@@ -1032,8 +1056,8 @@
     document.title = proposal.title + " - Proposal Manager";
     document.getElementById("detailTitle").textContent = textOrFallback(proposal.title, "Untitled Proposal");
     document.getElementById("detailStatus").textContent = proposal.status;
-    document.getElementById("detailDeadline").textContent = formatDateInput(proposal.deadline, "No deadline selected");
-    document.getElementById("detailDate").textContent = formatDateInput(proposal.timelineDate, formatDate(proposal.createdAt));
+    document.getElementById("detailDeadline").textContent = formatDateInput(proposal.deadline, "None");
+    document.getElementById("detailDate").textContent = formatDateInput(proposal.timelineDate, "None");
     document.getElementById("detailDescription").textContent = textOrFallback(proposal.description, "No extracted text available.");
 
     const detailNotesSection = document.getElementById("detailNotesSection");
