@@ -11,6 +11,7 @@
   const FIREBASE_DRAFT_DOC = "draft";
   const IMAGE_MAX_SIZE = 1400;
   const IMAGE_JPEG_QUALITY = 0.72;
+  const COUNTRY_COLOR_ORDER = ["none", "green", "red"];
   const STATUSES = ["Pending", "Completed", "For information only"];
   const SORT_OPTIONS = [
     { value: "date-desc", label: "Newest first" },
@@ -124,6 +125,31 @@
     return "clear";
   }
 
+  function normalizeCountries(value) {
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => {
+          if (typeof item === "string") {
+            return { name: item.trim(), color: "none" };
+          }
+          const name = String((item && item.name) || "").trim();
+          const color = ["green", "red"].includes(item && item.color) ? item.color : "none";
+          return name ? { name, color } : null;
+        })
+        .filter(Boolean);
+    }
+
+    if (typeof value === "string") {
+      return value
+        .split(",")
+        .map((country) => country.trim())
+        .filter(Boolean)
+        .map((name) => ({ name, color: "none" }));
+    }
+
+    return [];
+  }
+
   function normalizeProposal(proposal) {
     const now = todayISO();
     const divisions = Array.isArray(proposal.divisions) ? proposal.divisions : [];
@@ -163,7 +189,8 @@
           commentsStatus: normalizeCommentStatus(row),
           comments: String(row.comments || "").trim(),
           additionalComments: String(row.additionalComments || "").trim(),
-          additionalPhoto
+          additionalPhoto,
+          countries: normalizeCountries(row.countries)
         };
       }),
       images,
@@ -558,7 +585,13 @@
     const formDivisionPanel = document.getElementById("formDivisionPanel");
     const formDivisionEmpty = document.getElementById("formDivisionEmpty");
     const editFormDivisionsButton = document.getElementById("editFormDivisionsButton");
+    const importDivisionJsonButton = document.getElementById("importDivisionJsonButton");
     const formDivisionModal = document.getElementById("formDivisionModal");
+    const divisionJsonModal = document.getElementById("divisionJsonModal");
+    const divisionJsonInput = document.getElementById("divisionJsonInput");
+    const applyDivisionJsonButton = document.getElementById("applyDivisionJsonButton");
+    const cancelDivisionJsonModal = document.getElementById("cancelDivisionJsonModal");
+    const closeDivisionJsonModal = document.getElementById("closeDivisionJsonModal");
     const formDivisionOptionList = document.getElementById("formDivisionOptionList");
     const formNewDivisionInput = document.getElementById("formNewDivisionInput");
     const addFormDivisionOption = document.getElementById("addFormDivisionOption");
@@ -733,6 +766,48 @@
       formDivisionModal.hidden = true;
     }
 
+    function openDivisionJsonModal() {
+      divisionJsonInput.value = "";
+      divisionJsonModal.hidden = false;
+      divisionJsonInput.focus();
+    }
+
+    function closeDivisionJsonEditor() {
+      divisionJsonModal.hidden = true;
+    }
+
+    function applyDivisionJsonImport() {
+      let importedRows;
+      try {
+        importedRows = parseDivisionJson(divisionJsonInput.value);
+      } catch (error) {
+        alert(error.message || "That JSON could not be read.");
+        return;
+      }
+
+      const currentRows = readDivisions(form);
+      const rowMap = new Map(currentRows.map((row) => [row.division, row]));
+      importedRows.forEach((row) => {
+        const existingRow = rowMap.get(row.division);
+        rowMap.set(row.division, existingRow
+          ? {
+              ...existingRow,
+              countries: row.countries
+            }
+          : row);
+      });
+
+      divisionOptions = normalizeDivisionOptions(divisionOptions.concat(importedRows.map((row) => row.division)));
+      syncStoredDivisionOptions();
+      const selectedValues = new Set(Array.from(rowMap.keys()));
+      const nextRows = syncProposalDivisions(Array.from(rowMap.values()), selectedValues);
+      renderDivisionRows(divisionRows, nextRows);
+      renderFormDivisionSelector();
+      syncFormDivisionEmptyState();
+      closeDivisionJsonEditor();
+      form.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+
     function appendFormDivisionOptionRow(value) {
       const row = document.createElement("div");
       row.className = "division-option-row";
@@ -791,11 +866,20 @@
     });
     divisionRows.addEventListener("click", (event) => {
       const button = event.target.closest("[data-comment-choice]");
-      if (!button) return;
-      const row = button.closest("tr");
-      row.querySelector("[data-division-field='commentsStatus']").value = button.dataset.commentChoice;
-      syncDivisionCommentChoice(row);
-      form.dispatchEvent(new Event("input", { bubbles: true }));
+      if (button) {
+        const row = button.closest("tr");
+        row.querySelector("[data-division-field='commentsStatus']").value = button.dataset.commentChoice;
+        syncDivisionCommentChoice(row);
+        form.dispatchEvent(new Event("input", { bubbles: true }));
+        return;
+      }
+
+      const countryChip = event.target.closest("[data-country-index]");
+      if (countryChip) {
+        const row = countryChip.closest("tr");
+        cycleCountryColor(row, Number(countryChip.dataset.countryIndex));
+        form.dispatchEvent(new Event("input", { bubbles: true }));
+      }
     });
     divisionRows.addEventListener("change", async (event) => {
       const input = event.target.closest("[data-division-photo-input]");
@@ -817,6 +901,7 @@
     });
 
     editFormDivisionsButton.addEventListener("click", openFormDivisionModal);
+    importDivisionJsonButton.addEventListener("click", openDivisionJsonModal);
     addFormDivisionOption.addEventListener("click", () => {
       const value = formNewDivisionInput.value.trim();
       if (!value) return;
@@ -832,9 +917,17 @@
     saveFormDivisionOptions.addEventListener("click", saveFormDivisionOptionChanges);
     cancelFormDivisionModal.addEventListener("click", closeFormDivisionEditor);
     closeFormDivisionModal.addEventListener("click", closeFormDivisionEditor);
+    applyDivisionJsonButton.addEventListener("click", applyDivisionJsonImport);
+    cancelDivisionJsonModal.addEventListener("click", closeDivisionJsonEditor);
+    closeDivisionJsonModal.addEventListener("click", closeDivisionJsonEditor);
     formDivisionModal.addEventListener("click", (event) => {
       if (event.target === formDivisionModal) {
         closeFormDivisionEditor();
+      }
+    });
+    divisionJsonModal.addEventListener("click", (event) => {
+      if (event.target === divisionJsonModal) {
+        closeDivisionJsonEditor();
       }
     });
 
@@ -919,7 +1012,8 @@
       commentsStatus: "clear",
       comments: "",
       additionalComments: "",
-      additionalPhoto: null
+      additionalPhoto: null,
+      countries: []
     };
   }
 
@@ -972,7 +1066,7 @@
     if (!rows.length) {
       const tr = document.createElement("tr");
       tr.className = "division-empty-row";
-      tr.innerHTML = `<td colspan="3">No divisions selected yet.</td>`;
+      tr.innerHTML = `<td colspan="4">No divisions selected yet.</td>`;
       container.append(tr);
       return;
     }
@@ -984,6 +1078,7 @@
     tr.dataset.division = row.division;
     const commentStatus = normalizeCommentStatus(row);
     const additionalPhoto = normalizeStoredImage(row.additionalPhoto);
+    const countries = normalizeCountries(row.countries);
     tr.innerHTML = `
       <td><span class="division-name">${escapeHtml(row.division)}</span></td>
       <td>
@@ -1006,10 +1101,15 @@
           <div class="division-photo-preview" data-division-photo-preview></div>
         </div>
       </td>
+      <td>
+        <input type="hidden" data-division-field="countries" value="${escapeHtml(JSON.stringify(countries))}">
+        <div class="country-chip-wrap" data-country-chip-wrap></div>
+      </td>
     `;
     container.append(tr);
     syncDivisionCommentChoice(tr);
     renderDivisionPhotoPreview(tr, additionalPhoto);
+    renderCountryChips(tr, countries);
   }
 
   function readDivisions(form) {
@@ -1028,7 +1128,8 @@
           commentsStatus: row.querySelector('[data-division-field="commentsStatus"]').value,
           comments: row.querySelector('[data-division-field="comments"]').value.trim(),
           additionalComments: row.querySelector('[data-division-field="additionalComments"]').value.trim(),
-          additionalPhoto
+          additionalPhoto,
+          countries: readDivisionCountries(row)
         };
       })
       .filter((row) => row.division);
@@ -1074,12 +1175,78 @@
     return parts.length ? parts.join("<br>") : "";
   }
 
+  function renderCountriesDetail(row) {
+    const countries = normalizeCountries(row.countries);
+    return countries.length
+      ? countries.map((country) => `
+          <span class="country-chip color-${country.color}">
+            ${escapeHtml(country.name)}
+          </span>
+        `).join(" ")
+      : "";
+  }
+
   function renderDivisionPhotoPreview(row, image) {
     const preview = row.querySelector("[data-division-photo-preview]");
     if (!preview) return;
     preview.innerHTML = image && image.dataUrl
       ? `<figure class="division-photo-thumb"><img src="${escapeHtml(image.dataUrl)}" alt="${escapeHtml(image.name || "Captured division photo")}"><figcaption>${escapeHtml(image.name || "Captured photo")}</figcaption></figure>`
       : "";
+  }
+
+  function readDivisionCountries(row) {
+    const input = row.querySelector('[data-division-field="countries"]');
+    try {
+      return normalizeCountries(JSON.parse(input.value || "[]"));
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function renderCountryChips(row, countries) {
+    const input = row.querySelector('[data-division-field="countries"]');
+    const wrap = row.querySelector("[data-country-chip-wrap]");
+    const normalized = normalizeCountries(countries);
+    input.value = JSON.stringify(normalized);
+    wrap.innerHTML = normalized.length
+      ? normalized.map((country, index) => `
+          <button type="button" class="country-chip color-${country.color}" data-country-index="${index}" title="Tap to cycle color">
+            ${escapeHtml(country.name)}
+          </button>
+        `).join("")
+      : `<span class="hint">No countries imported.</span>`;
+  }
+
+  function cycleCountryColor(row, index) {
+    const countries = readDivisionCountries(row);
+    if (!countries[index]) return;
+    const currentIndex = COUNTRY_COLOR_ORDER.indexOf(countries[index].color || "none");
+    countries[index].color = COUNTRY_COLOR_ORDER[(currentIndex + 1) % COUNTRY_COLOR_ORDER.length];
+    renderCountryChips(row, countries);
+  }
+
+  function parseDivisionJson(text) {
+    const parsed = JSON.parse(text);
+
+    if (Array.isArray(parsed)) {
+      return parsed
+        .map((row) => ({
+          division: String((row && row.division) || "").trim(),
+          countries: normalizeCountries(row && row.countries)
+        }))
+        .filter((row) => row.division);
+    }
+
+    if (parsed && typeof parsed === "object") {
+      return Object.entries(parsed)
+        .map(([division, countries]) => ({
+          division: String(division || "").trim(),
+          countries: normalizeCountries(countries)
+        }))
+        .filter((row) => row.division);
+    }
+
+    throw new Error("Use either an array of division objects or an object keyed by division.");
   }
 
   function createLocalStoredImage(file) {
@@ -1272,6 +1439,7 @@
           <td>${escapeHtml(row.division)}</td>
           <td>${renderDivisionCommentDetail(row)}</td>
           <td>${renderAdditionalCommentDetail(row)}</td>
+          <td>${renderCountriesDetail(row)}</td>
         </tr>
       `).join("");
       detailDivisionEmpty.hidden = selectedRows.length > 0;
@@ -1399,7 +1567,8 @@
         commentsStatus: normalizeCommentStatus(row),
         comments: String(row.comments || "").trim(),
         additionalComments: String(row.additionalComments || "").trim(),
-        additionalPhoto: normalizeStoredImage(row.additionalPhoto)
+        additionalPhoto: normalizeStoredImage(row.additionalPhoto),
+        countries: normalizeCountries(row.countries)
       });
     });
 
@@ -1411,7 +1580,8 @@
         commentsStatus: "clear",
         comments: "",
         additionalComments: "",
-        additionalPhoto: null
+        additionalPhoto: null,
+        countries: []
       });
   }
 })();
