@@ -599,9 +599,8 @@
     const cancelFormDivisionModal = document.getElementById("cancelFormDivisionModal");
     const closeFormDivisionModal = document.getElementById("closeFormDivisionModal");
     const removeImageButton = document.getElementById("removeImageButton");
-    const draft = !existing ? loadDraft() : null;
-    const data = existing || draft || {};
-    const imageOwnerId = existing ? existing.id : (data.draftImageOwnerId || uid());
+    const data = existing || {};
+    const imageOwnerId = existing ? existing.id : uid();
     let currentImages = normalizeImages(data);
     let formHasUserInput = false;
 
@@ -618,26 +617,6 @@
     renderFormDivisionSelector();
     syncFormDivisionEmptyState();
     updateImagePreview(currentImages);
-
-    if (!existing) {
-      loadDraftFromFirebase().then((remoteDraft) => {
-        if (!remoteDraft || formHasUserInput) return;
-        const nextDraft = normalizeProposal(remoteDraft);
-        form.elements.title.value = nextDraft.title || "";
-        form.elements.description.value = nextDraft.description || "";
-        setBinarySwitch(form, "def", Boolean(nextDraft.def));
-        setOptionalDate(form, "deadline", nextDraft.deadline || "");
-        setOptionalDate(form, "timelineDate", nextDraft.timelineDate || "");
-        form.elements.notes.value = nextDraft.notes || "";
-        form.elements.status.value = nextDraft.status || "Pending";
-        currentImages = normalizeImages(nextDraft);
-        renderDivisionRows(divisionRows, nextDraft.divisions || []);
-        renderFormDivisionSelector();
-        syncFormDivisionEmptyState();
-        updateImagePreview(currentImages);
-        localStorage.setItem(DRAFT_KEY, JSON.stringify(readForm(form, currentImages)));
-      });
-    }
 
     let autosaveTimer;
     form.addEventListener("input", () => {

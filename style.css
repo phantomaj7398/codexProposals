@@ -533,13 +533,14 @@ textarea {
 
 .title-def-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(112px, 140px);
   align-items: end;
   gap: 12px;
 }
 
 .def-field {
-  min-width: 150px;
+  min-width: 0;
+  width: 100%;
 }
 
 .date-choice-field {
@@ -912,7 +913,9 @@ button.country-chip {
 }
 
 .division-action-row {
-  display: grid;
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
   gap: 8px;
 }
 
@@ -1028,10 +1031,6 @@ button.country-chip {
     align-items: start;
   }
 
-  .division-action-row {
-    grid-template-columns: repeat(2, auto);
-  }
-
   .division-option-add,
   .division-option-row {
     grid-template-columns: minmax(0, 1fr) auto;
@@ -1110,6 +1109,10 @@ button.country-chip {
 
   .button-row > * {
     flex: 1 1 100%;
+  }
+
+  .division-action-row {
+    width: 100%;
   }
   .detail-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
