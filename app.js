@@ -4,6 +4,13 @@
   const STORAGE_KEY = "proposal-manager:proposals:v1";
   const DRAFT_KEY = "proposal-manager:draft:v1";
   const DIVISION_OPTIONS_KEY = "proposal-manager:division-options:v1";
+  const FIREBASE_SDK_VERSION = "12.7.0";
+  const FIREBASE_COLLECTION = "proposals";
+  const FIREBASE_SETTINGS_COLLECTION = "proposalManager";
+  const FIREBASE_OPTIONS_DOC = "divisionOptions";
+  const FIREBASE_DRAFT_DOC = "draft";
+  const IMAGE_MAX_SIZE = 1400;
+  const IMAGE_JPEG_QUALITY = 0.72;
   const STATUSES = ["Pending", "Completed", "For information only"];
   const SORT_OPTIONS = [
     { value: "date-desc", label: "Newest first" },
@@ -21,9 +28,18 @@
   const topbar = document.querySelector(".topbar");
   const backupButton = document.getElementById("backupButton");
   const importInput = document.getElementById("importInput");
+  const cloudStatus = document.getElementById("cloudStatus");
 
   let proposals = loadProposals();
   let divisionOptions = loadDivisionOptions();
+  let firebaseState = {
+    enabled: false,
+    configured: false,
+    db: null,
+    api: null,
+    remoteProposalIds: new Set(),
+    pendingRender: false
+  };
 
   function uid() {
     if (window.crypto && crypto.randomUUID) {
@@ -75,9 +91,15 @@
       .map((image) => ({
         name: String(image.name || "Uploaded image"),
         type: String(image.type || "image/*"),
-        dataUrl: String(image.dataUrl)
+        size: Number(image.size || 0),
+        originalName: String(image.originalName || ""),
+        originalType: String(image.originalType || ""),
+        originalSize: Number(image.originalSize || 0),
+        width: Number(image.width || 0),
+        height: Number(image.height || 0),
+        compressed: Boolean(image.compressed),
+        dataUrl: String(image.dataUrl || "")
       }));
-    const image = images[0] || null;
     const legacyTimeline = String(proposal.timeline || "").trim();
     const inferredDate = /^\d{4}-\d{2}-\d{2}$/.test(legacyTimeline) ? legacyTimeline : "";
     const timelineType = proposal.timelineType === "date" || inferredDate ? "date" : "none";
@@ -95,7 +117,6 @@
         additionalComments: String(row.additionalComments || "").trim()
       })),
       images,
-      image,
       status: normalizeStatus(proposal.status),
       createdAt: proposal.createdAt || now,
       updatedAt: proposal.updatedAt || now
@@ -115,6 +136,7 @@
 
   function saveProposals() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(proposals));
+    saveProposalsToFirebase();
   }
 
   function collectDivisionOptions(source) {
@@ -156,11 +178,183 @@
 
   function saveDivisionOptions() {
     localStorage.setItem(DIVISION_OPTIONS_KEY, JSON.stringify(divisionOptions));
+    saveDivisionOptionsToFirebase();
   }
 
   function syncStoredDivisionOptions() {
     divisionOptions = normalizeDivisionOptions(divisionOptions);
     saveDivisionOptions();
+  }
+
+  function setCloudStatus(message) {
+    if (cloudStatus) {
+      cloudStatus.textContent = message;
+    }
+  }
+
+  function firebaseDoc(path) {
+    return firebaseState.api.doc(firebaseState.db, path);
+  }
+
+  function firebaseCollection(path) {
+    return firebaseState.api.collection(firebaseState.db, path);
+  }
+
+  function canUseFirebase() {
+    return firebaseState.enabled && firebaseState.db && firebaseState.api;
+  }
+
+  async function initializeFirebase() {
+    try {
+      const configModule = await import("./firebase-config.js");
+      const config = configModule.firebaseConfig || {};
+      const configured = typeof configModule.isFirebaseConfigured === "function"
+        ? configModule.isFirebaseConfigured(config)
+        : Boolean(config.apiKey && config.projectId && config.appId);
+
+      firebaseState.configured = configured;
+      if (!configured) {
+        setCloudStatus("Local storage");
+        return;
+      }
+
+      setCloudStatus("Connecting...");
+      const appModule = await import("https://www.gstatic.com/firebasejs/" + FIREBASE_SDK_VERSION + "/firebase-app.js");
+      const firestoreModule = await import("https://www.gstatic.com/firebasejs/" + FIREBASE_SDK_VERSION + "/firebase-firestore.js");
+      const firebaseApp = appModule.initializeApp(config);
+      const db = firestoreModule.getFirestore(firebaseApp);
+
+      firebaseState = {
+        ...firebaseState,
+        enabled: true,
+        db,
+        api: firestoreModule
+      };
+
+      await loadFirebaseData();
+      setCloudStatus("Synced");
+      render();
+    } catch (error) {
+      console.warn("Firebase unavailable; continuing with local storage.", error);
+      firebaseState.enabled = false;
+      setCloudStatus("Local storage");
+    }
+  }
+
+  async function loadFirebaseData() {
+    if (!canUseFirebase()) return;
+
+    const {
+      getDocs,
+      getDoc
+    } = firebaseState.api;
+
+    const proposalSnapshot = await getDocs(firebaseCollection(FIREBASE_COLLECTION));
+    const remoteProposals = [];
+    proposalSnapshot.forEach((docSnapshot) => {
+      remoteProposals.push(normalizeProposal({
+        id: docSnapshot.id,
+        ...docSnapshot.data()
+      }));
+    });
+
+    firebaseState.remoteProposalIds = new Set(remoteProposals.map((proposal) => proposal.id));
+
+    const optionsSnapshot = await getDoc(firebaseDoc(FIREBASE_SETTINGS_COLLECTION + "/" + FIREBASE_OPTIONS_DOC));
+    const remoteOptions = optionsSnapshot.exists()
+      ? normalizeDivisionOptions((optionsSnapshot.data() || {}).options)
+      : null;
+
+    if (remoteProposals.length || optionsSnapshot.exists()) {
+      proposals = remoteProposals;
+      divisionOptions = remoteOptions || collectDivisionOptions(proposals);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(proposals));
+      localStorage.setItem(DIVISION_OPTIONS_KEY, JSON.stringify(divisionOptions));
+    } else if (proposals.length || divisionOptions.length || loadDraft()) {
+      await saveProposalsToFirebase();
+      await saveDivisionOptionsToFirebase();
+      await saveDraftToFirebase(loadDraft());
+    }
+  }
+
+  async function saveProposalsToFirebase() {
+    if (!canUseFirebase()) return;
+
+    try {
+      const {
+        writeBatch
+      } = firebaseState.api;
+      const batch = writeBatch(firebaseState.db);
+      const nextIds = new Set(proposals.map((proposal) => proposal.id));
+
+      proposals.forEach((proposal) => {
+        batch.set(firebaseDoc(FIREBASE_COLLECTION + "/" + proposal.id), proposal);
+      });
+
+      firebaseState.remoteProposalIds.forEach((id) => {
+        if (!nextIds.has(id)) {
+          batch.delete(firebaseDoc(FIREBASE_COLLECTION + "/" + id));
+        }
+      });
+
+      await batch.commit();
+      firebaseState.remoteProposalIds = nextIds;
+      setCloudStatus("Synced");
+    } catch (error) {
+      console.warn("Unable to save proposals to Firebase", error);
+      setCloudStatus("Sync pending");
+    }
+  }
+
+  async function saveDivisionOptionsToFirebase() {
+    if (!canUseFirebase()) return;
+
+    try {
+      await firebaseState.api.setDoc(
+        firebaseDoc(FIREBASE_SETTINGS_COLLECTION + "/" + FIREBASE_OPTIONS_DOC),
+        {
+          options: normalizeDivisionOptions(divisionOptions),
+          updatedAt: todayISO()
+        }
+      );
+      setCloudStatus("Synced");
+    } catch (error) {
+      console.warn("Unable to save division options to Firebase", error);
+      setCloudStatus("Sync pending");
+    }
+  }
+
+  async function loadDraftFromFirebase() {
+    if (!canUseFirebase()) return null;
+
+    try {
+      const snapshot = await firebaseState.api.getDoc(firebaseDoc(FIREBASE_SETTINGS_COLLECTION + "/" + FIREBASE_DRAFT_DOC));
+      if (!snapshot.exists()) return null;
+      return (snapshot.data() || {}).draft || null;
+    } catch (error) {
+      console.warn("Unable to load draft from Firebase", error);
+      return null;
+    }
+  }
+
+  async function saveDraftToFirebase(draft) {
+    if (!canUseFirebase()) return;
+
+    try {
+      const draftRef = firebaseDoc(FIREBASE_SETTINGS_COLLECTION + "/" + FIREBASE_DRAFT_DOC);
+      if (draft) {
+        await firebaseState.api.setDoc(draftRef, {
+          draft,
+          updatedAt: todayISO()
+        });
+      } else {
+        await firebaseState.api.deleteDoc(draftRef);
+      }
+      setCloudStatus("Synced");
+    } catch (error) {
+      console.warn("Unable to save draft to Firebase", error);
+      setCloudStatus("Sync pending");
+    }
   }
 
   function getProposal(id) {
@@ -323,7 +517,9 @@
     const removeImageButton = document.getElementById("removeImageButton");
     const draft = !existing ? loadDraft() : null;
     const data = existing || draft || {};
+    const imageOwnerId = existing ? existing.id : (data.draftImageOwnerId || uid());
     let currentImages = normalizeImages(data);
+    let formHasUserInput = false;
 
     document.getElementById("formMode").textContent = existing ? "Edit proposal" : "New proposal";
     document.getElementById("formTitle").textContent = existing ? "Edit Proposal" : "Create Proposal";
@@ -341,17 +537,41 @@
     syncFormDivisionEmptyState();
     updateImagePreview(currentImages);
 
+    if (!existing) {
+      loadDraftFromFirebase().then((remoteDraft) => {
+        if (!remoteDraft || formHasUserInput) return;
+        const nextDraft = normalizeProposal(remoteDraft);
+        form.elements.title.value = nextDraft.title || "";
+        form.elements.description.value = nextDraft.description || "";
+        form.elements.timelineType.value = nextDraft.timelineType || "none";
+        form.elements.timelineDate.value = nextDraft.timelineDate || "";
+        form.elements.notes.value = nextDraft.notes || "";
+        form.elements.status.value = nextDraft.status || "Pending";
+        currentImages = normalizeImages(nextDraft);
+        syncTimelineDateVisibility(form, timelineDateField);
+        renderDivisionRows(divisionRows, nextDraft.divisions || []);
+        renderFormDivisionSelector();
+        syncFormDivisionEmptyState();
+        updateImagePreview(currentImages);
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(readForm(form, currentImages)));
+      });
+    }
+
     let autosaveTimer;
     form.addEventListener("input", () => {
+      formHasUserInput = true;
       clearTimeout(autosaveTimer);
       autosaveState.textContent = "Saving...";
       autosaveTimer = setTimeout(() => {
         const formData = readForm(form, currentImages);
+        formData.draftImageOwnerId = imageOwnerId;
         if (existing) {
           Object.assign(existing, formData, { updatedAt: todayISO() });
+          delete existing.draftImageOwnerId;
           saveProposals();
         } else {
           localStorage.setItem(DRAFT_KEY, JSON.stringify(formData));
+          saveDraftToFirebase(formData);
         }
         autosaveState.textContent = "Autosaved";
       }, 350);
@@ -360,6 +580,7 @@
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       const formData = readForm(form, currentImages);
+      formData.draftImageOwnerId = imageOwnerId;
       if (!formData.title) {
         alert("Please add a proposal title.");
         return;
@@ -371,15 +592,17 @@
 
       if (existing) {
         Object.assign(existing, formData, { updatedAt: todayISO() });
+        delete existing.draftImageOwnerId;
       } else {
         const now = todayISO();
         proposals.unshift(normalizeProposal({
           ...formData,
-          id: uid(),
+          id: imageOwnerId,
           createdAt: now,
           updatedAt: now
         }));
         localStorage.removeItem(DRAFT_KEY);
+        saveDraftToFirebase(null);
       }
 
       saveProposals();
@@ -537,11 +760,13 @@
       if (!files.length) return;
 
       try {
-        const storedImages = await Promise.all(files.map(createStoredImage));
+        autosaveState.textContent = "Saving images...";
+        const storedImages = await Promise.all(files.map(createLocalStoredImage));
         currentImages = currentImages.concat(storedImages);
         updateImagePreview(currentImages);
         form.dispatchEvent(new Event("input", { bubbles: true }));
       } catch (error) {
+        console.warn("Image upload failed", error);
         alert("Could not save those images. Please try different files.");
         ocrUpload.value = "";
         return;
@@ -644,17 +869,75 @@
     }
   }
 
-  function createStoredImage(file) {
+  function createLocalStoredImage(file) {
+    return compressImage(file).catch((error) => {
+      console.warn("Image compression failed; saving original image.", error);
+      return readOriginalImage(file);
+    });
+  }
+
+  function readOriginalImage(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve({
         name: file.name,
         type: file.type,
+        originalType: file.type,
+        originalSize: file.size || 0,
+        compressed: false,
         dataUrl: reader.result
       });
       reader.onerror = () => reject(reader.error);
       reader.readAsDataURL(file);
     });
+  }
+
+  function loadImageElement(src) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("Unable to load image for compression."));
+      image.src = src;
+    });
+  }
+
+  async function compressImage(file) {
+    const original = await readOriginalImage(file);
+    if (!file.type.startsWith("image/")) {
+      return original;
+    }
+
+    const image = await loadImageElement(original.dataUrl);
+    const sourceWidth = image.naturalWidth || image.width;
+    const sourceHeight = image.naturalHeight || image.height;
+    const scale = Math.min(1, IMAGE_MAX_SIZE / Math.max(sourceWidth, sourceHeight));
+    const width = Math.max(1, Math.round(sourceWidth * scale));
+    const height = Math.max(1, Math.round(sourceHeight * scale));
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      return original;
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    context.drawImage(image, 0, 0, width, height);
+
+    const dataUrl = canvas.toDataURL("image/jpeg", IMAGE_JPEG_QUALITY);
+    const compressedSize = Math.ceil((dataUrl.length - dataUrl.indexOf(",") - 1) * 3 / 4);
+    return {
+      name: file.name.replace(/\.[^.]+$/, "") + ".jpg",
+      type: "image/jpeg",
+      size: compressedSize,
+      originalName: file.name,
+      originalType: file.type,
+      originalSize: file.size || 0,
+      width,
+      height,
+      compressed: true,
+      dataUrl
+    };
   }
 
   function normalizeImages(source) {
@@ -664,7 +947,14 @@
       .map((image) => ({
         name: String(image.name || "Uploaded image"),
         type: String(image.type || "image/*"),
-        dataUrl: String(image.dataUrl)
+        size: Number(image.size || 0),
+        originalName: String(image.originalName || ""),
+        originalType: String(image.originalType || ""),
+        originalSize: Number(image.originalSize || 0),
+        width: Number(image.width || 0),
+        height: Number(image.height || 0),
+        compressed: Boolean(image.compressed),
+        dataUrl: String(image.dataUrl || "")
       }));
   }
 
@@ -693,7 +983,6 @@
       notes: form.elements.notes.value.trim(),
       divisions: readDivisions(form),
       images: normalizedImages,
-      image: normalizedImages[0] || null,
       status: form.elements.status.value
     };
   }
@@ -850,6 +1139,7 @@
   window.addEventListener("hashchange", render);
 
   render();
+  initializeFirebase();
 
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
     window.addEventListener("load", () => {

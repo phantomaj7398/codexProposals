@@ -123,6 +123,19 @@ label {
   flex: 0 0 auto;
 }
 
+.cloud-status {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .page {
   padding-bottom: 78px;
 }

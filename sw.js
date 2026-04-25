@@ -1,9 +1,10 @@
-const CACHE_NAME = "proposal-manager-v3";
+const CACHE_NAME = "proposal-manager-v4";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
+  "./firebase-config.js",
   "./manifest.json",
   "./icon.svg"
 ];
