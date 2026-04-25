@@ -659,31 +659,30 @@
       }
     });
 
-    form.elements.deadlineMode.addEventListener("change", () => {
-      syncOptionalDate(form, "deadline");
-      form.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    form.elements.timelineDateMode.addEventListener("change", () => {
-      syncOptionalDate(form, "timelineDate");
-      form.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    form.querySelectorAll("[data-date-toggle]").forEach((toggle) => {
+    form.querySelectorAll("[data-date-switch]").forEach((toggle) => {
       toggle.addEventListener("click", (event) => {
-        const button = event.target.closest("[data-date-choice]");
-        if (!button) return;
-        const name = toggle.dataset.dateToggle;
-        form.elements[name + "Mode"].value = button.dataset.dateChoice;
-        syncOptionalDate(form, name);
-        if (button.dataset.dateChoice === "date") {
-          const input = form.elements[name];
-          if (typeof input.showPicker === "function") {
-            input.showPicker();
-          } else {
-            input.focus();
+        const name = toggle.dataset.dateSwitch;
+        const active = form.elements[name + "Mode"].value === "date";
+        const clickedTrack = Boolean(event.target.closest(".switch-track"));
+        if (active && !clickedTrack) {
+          openDatePicker(form.elements[name]);
+        } else {
+          form.elements[name + "Mode"].value = active ? "none" : "date";
+          syncOptionalDate(form, name);
+          if (!active) {
+            openDatePicker(form.elements[name]);
           }
         }
         form.dispatchEvent(new Event("input", { bubbles: true }));
       });
+    });
+    form.elements.deadline.addEventListener("change", () => {
+      syncOptionalDate(form, "deadline");
+      form.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    form.elements.timelineDate.addEventListener("change", () => {
+      syncOptionalDate(form, "timelineDate");
+      form.dispatchEvent(new Event("input", { bubbles: true }));
     });
 
     function renderFormDivisionSelector() {
@@ -928,13 +927,13 @@
     const input = form.elements[name];
     const mode = form.elements[name + "Mode"];
     const hasDate = mode.value === "date";
-    input.hidden = !hasDate;
+    input.disabled = !hasDate;
     if (!hasDate) {
       input.value = "";
     } else if (!input.value) {
       input.value = todayDateInput();
     }
-    syncDateToggle(form, name);
+    syncDateSwitch(form, name);
   }
 
   function setOptionalDate(form, name, value) {
@@ -944,13 +943,28 @@
     syncOptionalDate(form, name);
   }
 
-  function syncDateToggle(form, name) {
+  function syncDateSwitch(form, name) {
     const value = form.elements[name + "Mode"].value;
-    form.querySelectorAll('[data-date-toggle="' + name + '"] [data-date-choice]').forEach((button) => {
-      const selected = button.dataset.dateChoice === value;
-      button.classList.toggle("selected", selected);
-      button.setAttribute("aria-pressed", selected ? "true" : "false");
-    });
+    const toggle = form.querySelector('[data-date-switch="' + name + '"]');
+    if (!toggle) return;
+    const checked = value === "date";
+    const label = toggle.querySelector("[data-date-switch-label]");
+    toggle.classList.toggle("active", checked);
+    toggle.setAttribute("aria-checked", checked ? "true" : "false");
+    if (label) {
+      label.textContent = checked
+        ? formatDateInput(form.elements[name].value, "Select date")
+        : "No date";
+    }
+  }
+
+  function openDatePicker(input) {
+    if (!input || input.disabled) return;
+    if (typeof input.showPicker === "function") {
+      input.showPicker();
+    } else {
+      input.focus();
+    }
   }
 
   function renderDivisionRows(container, rows) {
@@ -1023,15 +1037,41 @@
   function syncDivisionCommentChoice(row) {
     const status = row.querySelector('[data-division-field="commentsStatus"]').value || "clear";
     const note = row.querySelector('[data-division-field="comments"]');
+    const group = row.querySelector(".comment-choice-group");
     row.querySelectorAll("[data-comment-choice]").forEach((button) => {
       const selected = button.dataset.commentChoice === status;
       button.classList.toggle("selected", selected);
       button.setAttribute("aria-pressed", selected ? "true" : "false");
     });
+    if (group) {
+      group.dataset.state = status;
+    }
     note.hidden = status !== "partial";
     if (status !== "partial") {
       note.value = "";
     }
+  }
+
+  function renderDivisionCommentDetail(row) {
+    const status = normalizeCommentStatus(row);
+    if (status === "declined") return "Declined";
+    if (status === "partial") {
+      return row.comments
+        ? "Partially Declined: " + escapeHtml(row.comments)
+        : "Partially Declined";
+    }
+    return "Clear";
+  }
+
+  function renderAdditionalCommentDetail(row) {
+    const parts = [];
+    if (row.additionalComments) {
+      parts.push(escapeHtml(row.additionalComments));
+    }
+    if (row.additionalPhoto && row.additionalPhoto.dataUrl) {
+      parts.push(`<figure class="division-photo-thumb detail-photo-thumb"><img src="${escapeHtml(row.additionalPhoto.dataUrl)}" alt="${escapeHtml(row.additionalPhoto.name || "Captured division photo")}"><figcaption>${escapeHtml(row.additionalPhoto.name || "Captured photo")}</figcaption></figure>`);
+    }
+    return parts.length ? parts.join("<br>") : "";
   }
 
   function renderDivisionPhotoPreview(row, image) {
@@ -1356,8 +1396,10 @@
       if (!division || rowMap.has(division)) return;
       rowMap.set(division, {
         division,
+        commentsStatus: normalizeCommentStatus(row),
         comments: String(row.comments || "").trim(),
-        additionalComments: String(row.additionalComments || "").trim()
+        additionalComments: String(row.additionalComments || "").trim(),
+        additionalPhoto: normalizeStoredImage(row.additionalPhoto)
       });
     });
 
@@ -1366,8 +1408,10 @@
       .filter((division) => selected.includes(division))
       .map((division) => rowMap.get(division) || {
         division,
+        commentsStatus: "clear",
         comments: "",
-        additionalComments: ""
+        additionalComments: "",
+        additionalPhoto: null
       });
   }
 })();

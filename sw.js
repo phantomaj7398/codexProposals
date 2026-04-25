@@ -1,4 +1,4 @@
-const CACHE_NAME = "proposal-manager-v7";
+const CACHE_NAME = "proposal-manager-v8";
 const APP_SHELL = [
   "./",
   "./index.html",

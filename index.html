@@ -96,20 +96,20 @@
             <div class="field meta-field date-choice-field">
               <label>Deadline</label>
               <input id="deadlineMode" name="deadlineMode" type="hidden" value="none">
-              <div class="date-toggle" data-date-toggle="deadline" role="group" aria-label="Deadline date selection">
-                <button type="button" data-date-choice="none">No date</button>
-                <button type="button" data-date-choice="date">Date</button>
-              </div>
-              <input id="deadline" name="deadline" type="date" hidden>
+              <button class="date-switch" type="button" data-date-switch="deadline" role="switch" aria-checked="false">
+                <span class="switch-track"><span class="switch-thumb"></span></span>
+                <span class="switch-copy" data-date-switch-label>No date</span>
+              </button>
+              <input id="deadline" name="deadline" type="date" class="date-picker-proxy">
             </div>
             <div class="field meta-field date-choice-field">
               <label>Proposal Date</label>
               <input id="timelineDateMode" name="timelineDateMode" type="hidden" value="none">
-              <div class="date-toggle" data-date-toggle="timelineDate" role="group" aria-label="Proposal date selection">
-                <button type="button" data-date-choice="none">No date</button>
-                <button type="button" data-date-choice="date">Date</button>
-              </div>
-              <input id="timelineDate" name="timelineDate" type="date" hidden>
+              <button class="date-switch" type="button" data-date-switch="timelineDate" role="switch" aria-checked="false">
+                <span class="switch-track"><span class="switch-thumb"></span></span>
+                <span class="switch-copy" data-date-switch-label>No date</span>
+              </button>
+              <input id="timelineDate" name="timelineDate" type="date" class="date-picker-proxy">
             </div>
             <div class="field full">
               <label>Divisions Table</label>

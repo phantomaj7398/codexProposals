@@ -532,6 +532,7 @@ textarea {
 }
 
 .date-choice-field {
+  position: relative;
   align-content: start;
 }
 
@@ -539,8 +540,142 @@ textarea {
   align-content: start;
 }
 
-.date-choice-field input {
-  margin-top: 6px;
+.date-switch {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+}
+
+.date-switch.active {
+  color: var(--ink);
+  border-color: rgba(79, 209, 197, 0.45);
+  box-shadow: 0 0 0 3px rgba(79, 209, 197, 0.12);
+}
+
+.switch-track {
+  position: relative;
+  display: block;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(160, 174, 192, 0.28);
+  transition: background 120ms ease;
+}
+
+.date-switch.active .switch-track {
+  background: linear-gradient(135deg, rgba(79, 209, 197, 0.9), rgba(127, 156, 245, 0.86));
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 120ms ease;
+}
+
+.date-switch.active .switch-thumb {
+  transform: translateX(18px);
+}
+
+.switch-copy {
+  min-width: 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.date-picker-proxy {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.comment-choice-group {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.comment-choice-group button {
+  min-height: 34px;
+  padding: 7px 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.15;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, transform 120ms ease;
+}
+
+.comment-choice-group button.selected {
+  color: #fff;
+  background: linear-gradient(135deg, rgba(79, 209, 197, 0.9), rgba(127, 156, 245, 0.86));
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+}
+
+.division-photo-tools {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.division-photo-tools label {
+  position: relative;
+  width: max-content;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.division-photo-tools input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.division-photo-thumb {
+  display: grid;
+  gap: 6px;
+  max-width: 220px;
+  margin: 0;
+}
+
+.division-photo-thumb img {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.division-photo-thumb figcaption {
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .button-row {
@@ -903,12 +1038,18 @@ textarea {
   }
 
   .meta-field select,
+  .date-switch,
   .meta-field input,
   .document-field p {
     min-height: 38px;
     padding: 8px 7px;
     font-size: 12px;
     border-radius: 11px;
+  }
+
+  .switch-copy,
+  .comment-choice-group button {
+    font-size: 10px;
   }
 
   .modal-backdrop {
