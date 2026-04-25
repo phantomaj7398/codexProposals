@@ -81,9 +81,19 @@
           <span id="autosaveState" class="autosave-pill visually-hidden" aria-live="polite">Autosave ready</span>
 
           <div class="form-grid">
-            <div class="field full">
-              <label for="title">Name</label>
-              <input id="title" name="title" type="text" placeholder="Website redesign proposal" required>
+            <div class="field full title-def-row">
+              <div class="field">
+                <label for="title">Name</label>
+                <input id="title" name="title" type="text" placeholder="Website redesign proposal" required>
+              </div>
+              <div class="field def-field">
+                <label>Def</label>
+                <input id="defMode" name="defMode" type="hidden" value="off">
+                <button class="date-switch def-switch" type="button" data-binary-switch="def" role="switch" aria-checked="false">
+                  <span class="switch-track"><span class="switch-thumb"></span></span>
+                  <span class="switch-copy" data-binary-switch-label>Off</span>
+                </button>
+              </div>
             </div>
             <div class="field meta-field">
               <label for="status">Status</label>
@@ -219,8 +229,16 @@
 
       <article class="proposal-document" id="proposalDocument">
         <section class="document-field document-name">
-          <span>Name</span>
-          <h1 id="detailTitle"></h1>
+          <div class="document-name-row">
+            <div>
+              <span>Name</span>
+              <h1 id="detailTitle"></h1>
+            </div>
+            <div class="document-def">
+              <span>Def</span>
+              <p id="detailDef"></p>
+            </div>
+          </div>
         </section>
 
         <section class="document-meta-grid">

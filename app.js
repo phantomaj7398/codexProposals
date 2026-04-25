@@ -120,9 +120,10 @@
 
   function normalizeCommentStatus(row) {
     const status = String(row.commentsStatus || row.commentStatus || "").trim();
-    if (["clear", "declined", "partial"].includes(status)) return status;
+    if (status === "clear") return "cleared";
+    if (["awaited", "cleared", "partial", "declined"].includes(status)) return status;
     if (String(row.comments || "").trim()) return "partial";
-    return "clear";
+    return "awaited";
   }
 
   function normalizeCountries(value) {
@@ -181,6 +182,7 @@
       timelineType,
       timelineDate,
       deadline: dateInputValue(proposal.deadline || proposal.dueDate),
+      def: Boolean(proposal.def),
       notes: String(proposal.notes || "").trim(),
       divisions: divisions.map((row) => {
         const additionalPhoto = normalizeStoredImage(row.additionalPhoto);
@@ -188,7 +190,6 @@
           division: String(row.division || row.divisions || "").trim(),
           commentsStatus: normalizeCommentStatus(row),
           comments: String(row.comments || "").trim(),
-          additionalComments: String(row.additionalComments || "").trim(),
           additionalPhoto,
           countries: normalizeCountries(row.countries)
         };
@@ -526,8 +527,7 @@
           proposal.notes,
           ...proposal.divisions.flatMap((row) => [
             row.division,
-            row.comments,
-            row.additionalComments
+            row.comments
           ])
         ].join(" ").toLowerCase();
         return (!query || searchable.includes(query)) && activeStatuses.includes(proposal.status);
@@ -609,6 +609,7 @@
 
     form.elements.title.value = data.title || "";
     form.elements.description.value = data.description || "";
+    setBinarySwitch(form, "def", Boolean(data.def));
     setOptionalDate(form, "deadline", data.deadline || "");
     setOptionalDate(form, "timelineDate", data.timelineDate || "");
     form.elements.notes.value = data.notes || "";
@@ -624,6 +625,7 @@
         const nextDraft = normalizeProposal(remoteDraft);
         form.elements.title.value = nextDraft.title || "";
         form.elements.description.value = nextDraft.description || "";
+        setBinarySwitch(form, "def", Boolean(nextDraft.def));
         setOptionalDate(form, "deadline", nextDraft.deadline || "");
         setOptionalDate(form, "timelineDate", nextDraft.timelineDate || "");
         form.elements.notes.value = nextDraft.notes || "";
@@ -706,6 +708,15 @@
             openDatePicker(form.elements[name]);
           }
         }
+        form.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    });
+    form.querySelectorAll("[data-binary-switch]").forEach((toggle) => {
+      toggle.addEventListener("click", () => {
+        const name = toggle.dataset.binarySwitch;
+        const nextValue = form.elements[name + "Mode"].value === "on" ? "off" : "on";
+        form.elements[name + "Mode"].value = nextValue;
+        syncBinarySwitch(form, name);
         form.dispatchEvent(new Event("input", { bubbles: true }));
       });
     });
@@ -865,11 +876,11 @@
       syncFormDivisionEmptyState();
     });
     divisionRows.addEventListener("click", (event) => {
-      const button = event.target.closest("[data-comment-choice]");
-      if (button) {
-        const row = button.closest("tr");
-        row.querySelector("[data-division-field='commentsStatus']").value = button.dataset.commentChoice;
-        syncDivisionCommentChoice(row);
+      const removePhotoButton = event.target.closest("[data-remove-division-photo]");
+      if (removePhotoButton) {
+        const row = removePhotoButton.closest("tr");
+        row.querySelector("[data-division-field='additionalPhoto']").value = "";
+        renderDivisionPhotoPreview(row, null);
         form.dispatchEvent(new Event("input", { bubbles: true }));
         return;
       }
@@ -1009,9 +1020,8 @@
   function emptyDivisionRow() {
     return {
       division: "",
-      commentsStatus: "clear",
+      commentsStatus: "awaited",
       comments: "",
-      additionalComments: "",
       additionalPhoto: null,
       countries: []
     };
@@ -1052,6 +1062,23 @@
     }
   }
 
+  function setBinarySwitch(form, name, value) {
+    form.elements[name + "Mode"].value = value ? "on" : "off";
+    syncBinarySwitch(form, name);
+  }
+
+  function syncBinarySwitch(form, name) {
+    const toggle = form.querySelector('[data-binary-switch="' + name + '"]');
+    if (!toggle) return;
+    const checked = form.elements[name + "Mode"].value === "on";
+    const label = toggle.querySelector("[data-binary-switch-label]");
+    toggle.classList.toggle("active", checked);
+    toggle.setAttribute("aria-checked", checked ? "true" : "false");
+    if (label) {
+      label.textContent = checked ? "On" : "Off";
+    }
+  }
+
   function openDatePicker(input) {
     if (!input || input.disabled) return;
     if (typeof input.showPicker === "function") {
@@ -1082,22 +1109,21 @@
     tr.innerHTML = `
       <td><span class="division-name">${escapeHtml(row.division)}</span></td>
       <td>
-        <input type="hidden" data-division-field="commentsStatus" value="${escapeHtml(commentStatus)}">
-        <div class="comment-choice-group" role="group" aria-label="Comment status">
-          <button type="button" data-comment-choice="clear">Clear</button>
-          <button type="button" data-comment-choice="declined">Declined</button>
-          <button type="button" data-comment-choice="partial">Partially Declined</button>
-        </div>
-        <textarea data-division-field="comments" rows="2" placeholder="Partial decline note">${escapeHtml(row.comments)}</textarea>
+        <select data-division-field="commentsStatus" aria-label="Comment status">
+          <option value="awaited">Awaited</option>
+          <option value="cleared">Cleared</option>
+          <option value="partial">Partial</option>
+          <option value="declined">Declined</option>
+        </select>
       </td>
       <td>
-        <textarea data-division-field="additionalComments" rows="2" placeholder="Additional comments">${escapeHtml(row.additionalComments)}</textarea>
         <input type="hidden" data-division-field="additionalPhoto" value="${escapeHtml(additionalPhoto ? JSON.stringify(additionalPhoto) : "")}">
         <div class="division-photo-tools">
           <label class="secondary-button compact-button">
             Capture Photo
             <input type="file" accept="image/*" capture="environment" data-division-photo-input>
           </label>
+          <button class="danger-button compact-button" type="button" data-remove-division-photo hidden>Remove Photo</button>
           <div class="division-photo-preview" data-division-photo-preview></div>
         </div>
       </td>
@@ -1107,7 +1133,7 @@
       </td>
     `;
     container.append(tr);
-    syncDivisionCommentChoice(tr);
+    tr.querySelector('[data-division-field="commentsStatus"]').value = commentStatus;
     renderDivisionPhotoPreview(tr, additionalPhoto);
     renderCountryChips(tr, countries);
   }
@@ -1126,8 +1152,7 @@
         return {
           division: String(row.dataset.division || "").trim(),
           commentsStatus: row.querySelector('[data-division-field="commentsStatus"]').value,
-          comments: row.querySelector('[data-division-field="comments"]').value.trim(),
-          additionalComments: row.querySelector('[data-division-field="additionalComments"]').value.trim(),
+          comments: "",
           additionalPhoto,
           countries: readDivisionCountries(row)
         };
@@ -1135,44 +1160,20 @@
       .filter((row) => row.division);
   }
 
-  function syncDivisionCommentChoice(row) {
-    const status = row.querySelector('[data-division-field="commentsStatus"]').value || "clear";
-    const note = row.querySelector('[data-division-field="comments"]');
-    const group = row.querySelector(".comment-choice-group");
-    row.querySelectorAll("[data-comment-choice]").forEach((button) => {
-      const selected = button.dataset.commentChoice === status;
-      button.classList.toggle("selected", selected);
-      button.setAttribute("aria-pressed", selected ? "true" : "false");
-    });
-    if (group) {
-      group.dataset.state = status;
-    }
-    note.hidden = status !== "partial";
-    if (status !== "partial") {
-      note.value = "";
-    }
-  }
-
   function renderDivisionCommentDetail(row) {
     const status = normalizeCommentStatus(row);
+    if (status === "awaited") return "Awaited";
+    if (status === "cleared") return "Cleared";
     if (status === "declined") return "Declined";
-    if (status === "partial") {
-      return row.comments
-        ? "Partially Declined: " + escapeHtml(row.comments)
-        : "Partially Declined";
-    }
-    return "Clear";
+    if (status === "partial") return "Partial";
+    return "Awaited";
   }
 
   function renderAdditionalCommentDetail(row) {
-    const parts = [];
-    if (row.additionalComments) {
-      parts.push(escapeHtml(row.additionalComments));
-    }
     if (row.additionalPhoto && row.additionalPhoto.dataUrl) {
-      parts.push(`<figure class="division-photo-thumb detail-photo-thumb"><img src="${escapeHtml(row.additionalPhoto.dataUrl)}" alt="${escapeHtml(row.additionalPhoto.name || "Captured division photo")}"><figcaption>${escapeHtml(row.additionalPhoto.name || "Captured photo")}</figcaption></figure>`);
+      return `<figure class="division-photo-thumb detail-photo-thumb"><img src="${escapeHtml(row.additionalPhoto.dataUrl)}" alt="${escapeHtml(row.additionalPhoto.name || "Captured division photo")}"><figcaption>${escapeHtml(row.additionalPhoto.name || "Captured photo")}</figcaption></figure>`;
     }
-    return parts.length ? parts.join("<br>") : "";
+    return "";
   }
 
   function renderCountriesDetail(row) {
@@ -1188,7 +1189,11 @@
 
   function renderDivisionPhotoPreview(row, image) {
     const preview = row.querySelector("[data-division-photo-preview]");
+    const removeButton = row.querySelector("[data-remove-division-photo]");
     if (!preview) return;
+    if (removeButton) {
+      removeButton.hidden = !(image && image.dataUrl);
+    }
     preview.innerHTML = image && image.dataUrl
       ? `<figure class="division-photo-thumb"><img src="${escapeHtml(image.dataUrl)}" alt="${escapeHtml(image.name || "Captured division photo")}"><figcaption>${escapeHtml(image.name || "Captured photo")}</figcaption></figure>`
       : "";
@@ -1360,6 +1365,7 @@
     return {
       title: form.elements.title.value.trim(),
       description: form.elements.description.value.trim(),
+      def: form.elements.defMode.value === "on",
       timelineType: timelineDate ? "date" : "none",
       timelineDate,
       deadline,
@@ -1401,6 +1407,7 @@
 
     document.title = proposal.title + " - Proposal Manager";
     document.getElementById("detailTitle").textContent = textOrFallback(proposal.title, "Untitled Proposal");
+    document.getElementById("detailDef").textContent = proposal.def ? "On" : "Off";
     document.getElementById("detailStatus").textContent = proposal.status;
     document.getElementById("detailDeadline").textContent = formatDateInput(proposal.deadline, "None");
     document.getElementById("detailDate").textContent = formatDateInput(proposal.timelineDate, "None");
@@ -1565,8 +1572,7 @@
       rowMap.set(division, {
         division,
         commentsStatus: normalizeCommentStatus(row),
-        comments: String(row.comments || "").trim(),
-        additionalComments: String(row.additionalComments || "").trim(),
+        comments: "",
         additionalPhoto: normalizeStoredImage(row.additionalPhoto),
         countries: normalizeCountries(row.countries)
       });
@@ -1577,9 +1583,8 @@
       .filter((division) => selected.includes(division))
       .map((division) => rowMap.get(division) || {
         division,
-        commentsStatus: "clear",
+        commentsStatus: "awaited",
         comments: "",
-        additionalComments: "",
         additionalPhoto: null,
         countries: []
       });

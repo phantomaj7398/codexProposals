@@ -531,6 +531,17 @@ textarea {
   gap: 12px;
 }
 
+.title-def-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.def-field {
+  min-width: 150px;
+}
+
 .date-choice-field {
   position: relative;
   align-content: start;
@@ -605,37 +616,6 @@ textarea {
   margin: 0;
   opacity: 0;
   pointer-events: none;
-}
-
-.comment-choice-group {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  padding: 4px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.comment-choice-group button {
-  min-height: 34px;
-  padding: 7px 8px;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1.15;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  cursor: pointer;
-  transition: background 120ms ease, color 120ms ease, transform 120ms ease;
-}
-
-.comment-choice-group button.selected {
-  color: #fff;
-  background: linear-gradient(135deg, rgba(79, 209, 197, 0.9), rgba(127, 156, 245, 0.86));
-  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
 }
 
 .division-photo-tools {
@@ -718,6 +698,17 @@ button.country-chip {
 
 .country-chip.color-none {
   color: var(--ink);
+}
+
+.document-name-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.document-def {
+  min-width: 120px;
 }
 
 .button-row {
@@ -1083,6 +1074,12 @@ button.country-chip {
     grid-column: 1 / -1;
   }
 
+  .title-def-row,
+  .document-name-row {
+    grid-template-columns: minmax(0, 1fr) 120px;
+    gap: 8px;
+  }
+
   .meta-field label,
   .document-field span {
     font-size: 0.68rem;
@@ -1099,7 +1096,7 @@ button.country-chip {
   }
 
   .switch-copy,
-  .comment-choice-group button {
+  .country-chip {
     font-size: 10px;
   }
 
