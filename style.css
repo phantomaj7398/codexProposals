@@ -1119,6 +1119,10 @@ button.country-chip {
     flex-wrap: wrap;
   }
 
+  .button-row.page-actions > * {
+    flex: 0 1 auto;
+  }
+
   .division-action-row {
     width: 100%;
   }
