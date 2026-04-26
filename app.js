@@ -1420,14 +1420,32 @@
 
     function renderDivisionTable() {
       const selectedRows = (proposal.divisions || []).filter((row) => row.division);
-      detailDivisionRows.innerHTML = selectedRows.map((row) => `
-        <tr>
-          <td>${escapeHtml(row.division)}</td>
-          <td>${renderDivisionCommentDetail(row)}</td>
-          <td>${renderAdditionalCommentDetail(row)}</td>
-          <td>${renderCountriesDetail(row)}</td>
-        </tr>
-      `).join("");
+      detailDivisionRows.innerHTML = selectedRows.map((row) => {
+        const additionalComment = renderAdditionalCommentDetail(row) || `<p class="muted-text">No additional comments.</p>`;
+        const countries = renderCountriesDetail(row) || `<p class="muted-text">No countries listed.</p>`;
+        return `
+          <section class="division-card">
+            <div class="division-card-header">
+              <h4>${escapeHtml(row.division)}</h4>
+              <span class="division-status-badge">${renderDivisionCommentDetail(row)}</span>
+            </div>
+            <div class="division-card-body">
+              <div class="division-card-field">
+                <span>Comments</span>
+                <p>${renderDivisionCommentDetail(row)}</p>
+              </div>
+              <div class="division-card-field">
+                <span>Additional Comments</span>
+                ${additionalComment}
+              </div>
+              <div class="division-card-field">
+                <span>Countries</span>
+                ${countries}
+              </div>
+            </div>
+          </section>
+        `;
+      }).join("");
       detailDivisionEmpty.hidden = selectedRows.length > 0;
     }
 

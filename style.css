@@ -699,17 +699,6 @@ button.country-chip {
   color: var(--text);
 }
 
-.document-name-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: end;
-}
-
-.document-def {
-  min-width: 120px;
-}
-
 .button-row {
   margin-top: 16px;
 }
@@ -801,55 +790,83 @@ button.country-chip {
 
 .proposal-document {
   display: grid;
-  gap: 14px;
-  max-width: 960px;
+  gap: 22px;
+  max-width: 800px;
   margin: 0 auto;
-  padding: 14px;
+  padding: 24px;
   background: var(--card);
 }
 
-.document-meta-grid {
+.proposal-document > section {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
+}
+
+.document-header {
+  display: grid;
+  gap: 6px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.document-header h1 {
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(22px, 4vw, 26px);
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.document-header-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .document-field {
   display: grid;
-  gap: 5px;
+  gap: 3px;
 }
 
 .document-field span {
   color: var(--muted);
-  font-size: 0.76rem;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .document-field h1,
 .document-field p {
   min-width: 0;
   margin: 0;
-  padding: 9px 12px;
+  padding: 0;
   color: var(--text);
   font-size: 14px;
   font-weight: 500;
-  line-height: 1.35;
+  line-height: 1.5;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: #F9FAFB;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .document-image {
   height: auto;
   max-height: none;
-  border-radius: 14px;
+  border: 0;
+  border-radius: 10px;
   object-fit: contain;
 }
 
 .document-image-grid {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -867,29 +884,45 @@ button.country-chip {
 .proposal-document h3 {
   margin: 0 0 8px;
   color: var(--text);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 600;
   line-height: 1.25;
 }
 
 .proposal-document p {
   color: var(--muted);
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 400;
-  line-height: 1.55;
+  line-height: 1.6;
   white-space: pre-wrap;
 }
 
 .proposal-document .document-field p {
-  padding: 9px 12px;
+  padding: 0;
   color: var(--text);
   font-size: 14px;
   font-weight: 500;
-  line-height: 1.35;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: #F9FAFB;
+  line-height: 1.5;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.document-header-meta .document-field {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.document-header-meta .document-field span::after {
+  content: ":";
+}
+
+.document-header-meta .document-field p {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .document-table {
@@ -916,6 +949,83 @@ button.country-chip {
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
+}
+
+.division-card-list {
+  display: grid;
+  gap: 12px;
+}
+
+.division-card {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #FFFFFF;
+}
+
+.division-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.division-card-header h4 {
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.division-status-badge {
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  border-radius: 999px;
+  background: var(--primary-light);
+}
+
+.division-card-body {
+  display: grid;
+  gap: 11px;
+}
+
+.division-card-field {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.division-card-field > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.division-card-field p {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.division-card-field .muted-text {
+  color: var(--muted);
+}
+
+.division-card .country-chip-wrap {
+  min-width: 0;
+}
+
+.division-card .detail-photo-thumb {
+  max-width: 320px;
 }
 
 .detail-division-controls {
@@ -1001,14 +1111,15 @@ button.country-chip {
   position: static;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  width: min(960px, 100%);
+  gap: 10px;
+  width: min(800px, 100%);
   max-width: 100%;
-  padding: 8px;
-  margin: 0 auto 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  padding: 0;
+  margin: 0 auto 14px;
+  border: 0;
+  border-radius: 0;
   background: #FFFFFF;
-  box-shadow: var(--shadow);
+  box-shadow: none;
 }
 
 .detail-actions > * {
@@ -1052,14 +1163,12 @@ button.country-chip {
     grid-template-columns: 1fr;
   }
 
-  .document-meta-grid,
   .form-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     column-gap: 6px;
   }
 
-  .form-grid .meta-field,
-  .document-meta-grid .document-field {
+  .form-grid .meta-field {
     min-width: 0;
   }
 
@@ -1083,25 +1192,35 @@ button.country-chip {
     grid-column: 1 / -1;
   }
 
-  .title-def-row,
-  .document-name-row {
+  .title-def-row {
     grid-template-columns: minmax(0, 1fr) 120px;
     gap: 8px;
   }
 
-  .meta-field label,
-  .document-field span {
+  .meta-field label {
     font-size: 0.68rem;
   }
 
   .meta-field select,
   .date-switch,
-  .meta-field input,
-  .document-field p {
+  .meta-field input {
     min-height: 38px;
     padding: 8px 7px;
     font-size: 12px;
     border-radius: 11px;
+  }
+
+  .proposal-document {
+    gap: 20px;
+    padding: 20px;
+  }
+
+  .document-header-meta {
+    gap: 7px 12px;
+  }
+
+  .document-image-grid {
+    grid-template-columns: 1fr;
   }
 
   .switch-copy,
@@ -1135,6 +1254,7 @@ button.country-chip {
   .detail-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: calc(100vw - 24px);
+    gap: 10px;
   }
 
   .division-action-row {

@@ -228,49 +228,31 @@
       </nav>
 
       <article class="proposal-document" id="proposalDocument">
-        <section class="document-field document-name">
-          <div class="document-name-row">
-            <div>
-              <span>Name</span>
-              <h1 id="detailTitle"></h1>
+        <header class="document-header">
+          <h1 id="detailTitle"></h1>
+          <div class="document-header-meta" aria-label="Proposal metadata">
+            <div class="document-field">
+              <span>Status</span>
+              <p id="detailStatus"></p>
             </div>
-            <div class="document-def">
+            <div class="document-field">
+              <span>Deadline</span>
+              <p id="detailDeadline"></p>
+            </div>
+            <div class="document-field">
+              <span>Proposal Date</span>
+              <p id="detailDate"></p>
+            </div>
+            <div class="document-field">
               <span>Def</span>
               <p id="detailDef"></p>
             </div>
           </div>
-        </section>
-
-        <section class="document-meta-grid">
-          <div class="document-field">
-            <span>Status</span>
-            <p id="detailStatus"></p>
-          </div>
-          <div class="document-field">
-            <span>Deadline</span>
-            <p id="detailDeadline"></p>
-          </div>
-          <div class="document-field">
-            <span>Proposal Date</span>
-            <p id="detailDate"></p>
-          </div>
-        </section>
+        </header>
 
         <section id="detailTableSection" hidden>
           <h3>Divisions</h3>
-          <div class="division-table-wrap">
-            <table class="division-table document-table">
-              <thead>
-                <tr>
-                  <th>Divisions</th>
-                  <th>Comments</th>
-                  <th>Additional Comments</th>
-                  <th>Countries</th>
-                </tr>
-              </thead>
-              <tbody id="detailDivisionRows"></tbody>
-            </table>
-          </div>
+          <div class="division-card-list" id="detailDivisionRows"></div>
           <p id="detailDivisionEmpty" class="hint" hidden>No divisions selected.</p>
         </section>
 
