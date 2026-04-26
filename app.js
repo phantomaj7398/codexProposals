@@ -2,13 +2,12 @@
   "use strict";
 
   const STORAGE_KEY = "proposal-manager:proposals:v1";
-  const DRAFT_KEY = "proposal-manager:draft:v1";
+  const LEGACY_DRAFT_KEY = "proposal-manager:draft:v1";
   const DIVISION_OPTIONS_KEY = "proposal-manager:division-options:v1";
   const FIREBASE_SDK_VERSION = "12.7.0";
   const FIREBASE_COLLECTION = "proposals";
   const FIREBASE_SETTINGS_COLLECTION = "proposalManager";
   const FIREBASE_OPTIONS_DOC = "divisionOptions";
-  const FIREBASE_DRAFT_DOC = "draft";
   const IMAGE_MAX_SIZE = 1400;
   const IMAGE_JPEG_QUALITY = 0.72;
   const COUNTRY_COLOR_ORDER = ["none", "green", "red"];
@@ -16,6 +15,10 @@
   const SORT_OPTIONS = [
     { value: "date-desc", label: "Newest first" },
     { value: "date-asc", label: "Oldest first" },
+    { value: "proposal-date-desc", label: "Proposal date newest" },
+    { value: "proposal-date-asc", label: "Proposal date oldest" },
+    { value: "deadline-asc", label: "Deadline soonest" },
+    { value: "deadline-desc", label: "Deadline latest" },
     { value: "title-asc", label: "Title A-Z" },
     { value: "title-desc", label: "Title Z-A" }
   ];
@@ -98,6 +101,20 @@
 
   function shortStatusLabel(status) {
     return status === "For information only" ? "For info..." : status;
+  }
+
+  function datedSortValue(value) {
+    const normalized = dateInputValue(value);
+    return normalized ? new Date(normalized + "T00:00:00").getTime() : null;
+  }
+
+  function compareDatesWithEmptyLast(aValue, bValue, direction = "asc") {
+    const aTime = datedSortValue(aValue);
+    const bTime = datedSortValue(bValue);
+    if (aTime === null && bTime === null) return 0;
+    if (aTime === null) return 1;
+    if (bTime === null) return -1;
+    return direction === "desc" ? bTime - aTime : aTime - bTime;
   }
 
   function normalizeStoredImage(image, fallbackName = "Captured image") {
@@ -189,38 +206,6 @@
       createdAt: proposal.createdAt || now,
       updatedAt: proposal.updatedAt || now
     };
-  }
-
-  function normalizeDraft(draft) {
-    if (!draft || typeof draft !== "object") return null;
-    const legacyTimeline = String(draft.timeline || "").trim();
-    const inferredDate = /^\d{4}-\d{2}-\d{2}$/.test(legacyTimeline) ? legacyTimeline : "";
-    const timelineDate = dateInputValue(draft.timelineDate || inferredDate);
-    const normalized = {
-      title: String(draft.title || "").trim(),
-      description: String(draft.description || "").trim(),
-      def: Boolean(draft.def),
-      timelineType: timelineDate ? "date" : "none",
-      timelineDate,
-      deadline: dateInputValue(draft.deadline || draft.dueDate),
-      notes: String(draft.notes || "").trim(),
-      divisions: normalizeDivisionRows(draft.divisions),
-      images: normalizeImages(draft),
-      status: normalizeStatus(draft.status),
-      draftImageOwnerId: String(draft.draftImageOwnerId || "")
-    };
-
-    const hasContent = normalized.title ||
-      normalized.description ||
-      normalized.notes ||
-      normalized.deadline ||
-      normalized.timelineDate ||
-      normalized.def ||
-      normalized.divisions.length ||
-      normalized.images.length ||
-      normalized.status !== "Pending";
-
-    return hasContent ? normalized : null;
   }
 
   function loadProposals() {
@@ -343,10 +328,7 @@
   async function loadFirebaseData() {
     if (!canUseFirebase()) return;
 
-    const {
-      getDocs,
-      getDoc
-    } = firebaseState.api;
+    const { getDocs, getDoc } = firebaseState.api;
 
     const proposalSnapshot = await getDocs(firebaseCollection(FIREBASE_COLLECTION));
     const remoteProposals = [];
@@ -363,26 +345,15 @@
     const remoteOptions = optionsSnapshot.exists()
       ? normalizeDivisionOptions((optionsSnapshot.data() || {}).options)
       : null;
-    const draftSnapshot = await getDoc(firebaseDoc(FIREBASE_SETTINGS_COLLECTION + "/" + FIREBASE_DRAFT_DOC));
-    const remoteDraft = draftSnapshot.exists()
-      ? normalizeDraft((draftSnapshot.data() || {}).draft)
-      : null;
 
-    if (remoteProposals.length || optionsSnapshot.exists() || draftSnapshot.exists()) {
+    if (remoteProposals.length || optionsSnapshot.exists()) {
       proposals = remoteProposals;
       divisionOptions = remoteOptions || collectDivisionOptions(proposals);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(proposals));
       localStorage.setItem(DIVISION_OPTIONS_KEY, JSON.stringify(divisionOptions));
-      if (remoteDraft) {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify(remoteDraft));
-      } else {
-        localStorage.removeItem(DRAFT_KEY);
-      }
-    } else if (proposals.length || divisionOptions.length || loadDraft()) {
-      const localDraft = loadDraft();
+    } else if (proposals.length || divisionOptions.length) {
       await saveProposalsToFirebase();
       await saveDivisionOptionsToFirebase();
-      await saveDraftToFirebase(localDraft);
     }
   }
 
@@ -429,39 +400,6 @@
       setCloudStatus("Synced");
     } catch (error) {
       console.warn("Unable to save division options to Firebase", error);
-      setCloudStatus("Sync pending");
-    }
-  }
-
-  async function loadDraftFromFirebase() {
-    if (!canUseFirebase()) return null;
-
-    try {
-      const snapshot = await firebaseState.api.getDoc(firebaseDoc(FIREBASE_SETTINGS_COLLECTION + "/" + FIREBASE_DRAFT_DOC));
-      if (!snapshot.exists()) return null;
-      return normalizeDraft((snapshot.data() || {}).draft);
-    } catch (error) {
-      console.warn("Unable to load draft from Firebase", error);
-      return null;
-    }
-  }
-
-  async function saveDraftToFirebase(draft) {
-    if (!canUseFirebase()) return;
-
-    try {
-      const draftRef = firebaseDoc(FIREBASE_SETTINGS_COLLECTION + "/" + FIREBASE_DRAFT_DOC);
-      if (draft) {
-        await firebaseState.api.setDoc(draftRef, {
-          draft,
-          updatedAt: todayISO()
-        });
-      } else {
-        await firebaseState.api.deleteDoc(draftRef);
-      }
-      setCloudStatus("Synced");
-    } catch (error) {
-      console.warn("Unable to save draft to Firebase", error);
       setCloudStatus("Sync pending");
     }
   }
@@ -566,6 +504,10 @@
 
       visible = visible.sort((a, b) => {
         if (sort === "date-asc") return new Date(a.updatedAt) - new Date(b.updatedAt);
+        if (sort === "proposal-date-asc") return compareDatesWithEmptyLast(a.timelineDate, b.timelineDate, "asc");
+        if (sort === "proposal-date-desc") return compareDatesWithEmptyLast(a.timelineDate, b.timelineDate, "desc");
+        if (sort === "deadline-asc") return compareDatesWithEmptyLast(a.deadline, b.deadline, "asc");
+        if (sort === "deadline-desc") return compareDatesWithEmptyLast(a.deadline, b.deadline, "desc");
         if (sort === "title-asc") return a.title.localeCompare(b.title);
         if (sort === "title-desc") return b.title.localeCompare(a.title);
         return new Date(b.updatedAt) - new Date(a.updatedAt);
@@ -630,9 +572,13 @@
     const cancelFormDivisionModal = document.getElementById("cancelFormDivisionModal");
     const closeFormDivisionModal = document.getElementById("closeFormDivisionModal");
     const removeImageButton = document.getElementById("removeImageButton");
-    const data = existing || loadDraft() || {};
-    const imageOwnerId = existing ? existing.id : (data.draftImageOwnerId || uid());
+    const data = existing || {};
+    const imageOwnerId = existing ? existing.id : uid();
     let currentImages = normalizeImages(data);
+
+    if (!existing) {
+      localStorage.removeItem(LEGACY_DRAFT_KEY);
+    }
 
     deleteButton.hidden = !existing;
 
@@ -654,30 +600,25 @@
       autosaveState.textContent = "Saving...";
       autosaveTimer = setTimeout(() => {
         const formData = readForm(form, currentImages);
-        formData.draftImageOwnerId = imageOwnerId;
         if (existing) {
           Object.assign(existing, formData, { updatedAt: todayISO() });
-          delete existing.draftImageOwnerId;
           saveProposals();
+          autosaveState.textContent = "Autosaved";
         } else {
-          localStorage.setItem(DRAFT_KEY, JSON.stringify(formData));
-          saveDraftToFirebase(formData);
+          autosaveState.textContent = "Unsaved changes";
         }
-        autosaveState.textContent = "Autosaved";
       }, 350);
     });
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       const formData = readForm(form, currentImages);
-      formData.draftImageOwnerId = imageOwnerId;
       if (!formData.title) {
         alert("Please add a proposal title.");
         return;
       }
       if (existing) {
         Object.assign(existing, formData, { updatedAt: todayISO() });
-        delete existing.draftImageOwnerId;
       } else {
         const now = todayISO();
         proposals.unshift(normalizeProposal({
@@ -686,8 +627,7 @@
           createdAt: now,
           updatedAt: now
         }));
-        localStorage.removeItem(DRAFT_KEY);
-        saveDraftToFirebase(null);
+        localStorage.removeItem(LEGACY_DRAFT_KEY);
       }
 
       saveProposals();
@@ -1345,14 +1285,6 @@
     };
   }
 
-  function loadDraft() {
-    try {
-      return normalizeDraft(JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"));
-    } catch (error) {
-      return null;
-    }
-  }
-
   function textOrFallback(value, fallback) {
     return value && value.trim() ? value : fallback;
   }
@@ -1531,10 +1463,9 @@
         divisionOptions = data && "divisionOptions" in data
           ? normalizeDivisionOptions(data.divisionOptions)
           : collectDivisionOptions(proposals);
-        localStorage.removeItem(DRAFT_KEY);
+        localStorage.removeItem(LEGACY_DRAFT_KEY);
         saveDivisionOptions();
         saveProposals();
-        saveDraftToFirebase(null);
         render();
         alert("Backup imported successfully.");
       } catch (error) {
