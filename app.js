@@ -208,20 +208,43 @@
     };
   }
 
+  function proposalTimestamp(value) {
+    const time = new Date(value || 0).getTime();
+    return Number.isNaN(time) ? 0 : time;
+  }
+
+  function dedupeProposalsById(source) {
+    const byId = new Map();
+    (source || []).forEach((proposal) => {
+      if (!proposal || !proposal.id) return;
+      const existing = byId.get(proposal.id);
+      if (!existing || proposalTimestamp(proposal.updatedAt) >= proposalTimestamp(existing.updatedAt)) {
+        byId.set(proposal.id, proposal);
+      }
+    });
+    return Array.from(byId.values());
+  }
+
   function loadProposals() {
     try {
       const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
       if (!Array.isArray(stored)) return [];
-      return stored.map(normalizeProposal);
+      return dedupeProposalsById(stored.map(normalizeProposal));
     } catch (error) {
       console.warn("Unable to load proposals", error);
       return [];
     }
   }
 
-  function saveProposals() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(proposals));
+  function saveProposals(nextProposals = proposals) {
+    const normalizedProposals = dedupeProposalsById(nextProposals);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedProposals));
+    proposals = normalizedProposals;
     saveProposalsToFirebase();
+  }
+
+  function storageFailureMessage() {
+    return "Could not save your changes in this browser. This usually means local storage is full, often because image uploads are too large. Remove one or more images, then try again.";
   }
 
   function collectDivisionOptions(source) {
@@ -595,15 +618,23 @@
     updateImagePreview(currentImages);
 
     let autosaveTimer;
+    let isSubmitting = false;
     form.addEventListener("input", () => {
       clearTimeout(autosaveTimer);
       autosaveState.textContent = "Saving...";
       autosaveTimer = setTimeout(() => {
         const formData = readForm(form, currentImages);
         if (existing) {
+          const previous = { ...existing };
           Object.assign(existing, formData, { updatedAt: todayISO() });
-          saveProposals();
-          autosaveState.textContent = "Autosaved";
+          try {
+            saveProposals();
+            autosaveState.textContent = "Autosaved";
+          } catch (error) {
+            Object.assign(existing, previous);
+            console.warn("Unable to autosave proposal", error);
+            autosaveState.textContent = "Unsaved changes";
+          }
         } else {
           autosaveState.textContent = "Unsaved changes";
         }
@@ -612,26 +643,54 @@
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
+      if (isSubmitting) return;
       const formData = readForm(form, currentImages);
       if (!formData.title) {
         alert("Please add a proposal title.");
         return;
       }
+      isSubmitting = true;
+      const submitButton = form.querySelector("button[type='submit']");
+      if (submitButton) submitButton.disabled = true;
+
+      let savedProposal;
       if (existing) {
+        const previous = { ...existing };
         Object.assign(existing, formData, { updatedAt: todayISO() });
+        savedProposal = existing;
+        try {
+          saveProposals();
+        } catch (error) {
+          Object.assign(existing, previous);
+          console.warn("Unable to save proposal", error);
+          alert(storageFailureMessage());
+          isSubmitting = false;
+          if (submitButton) submitButton.disabled = false;
+          return;
+        }
       } else {
         const now = todayISO();
-        proposals.unshift(normalizeProposal({
+        const nextProposal = normalizeProposal({
           ...formData,
           id: imageOwnerId,
           createdAt: now,
           updatedAt: now
-        }));
-        localStorage.removeItem(LEGACY_DRAFT_KEY);
+        });
+        const nextProposals = [nextProposal].concat(proposals);
+        try {
+          saveProposals(nextProposals);
+          localStorage.removeItem(LEGACY_DRAFT_KEY);
+          savedProposal = nextProposal;
+        } catch (error) {
+          console.warn("Unable to save proposal", error);
+          alert(storageFailureMessage());
+          isSubmitting = false;
+          if (submitButton) submitButton.disabled = false;
+          return;
+        }
       }
 
-      saveProposals();
-      navigate("#/proposal/" + encodeURIComponent((existing || proposals[0]).id));
+      navigate("#/proposal/" + encodeURIComponent(savedProposal.id));
     });
 
     deleteButton.addEventListener("click", () => {
@@ -1444,32 +1503,44 @@
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
+    link.href = url;
     link.download = "proposal-manager-backup.json";
     document.body.append(link);
     link.click();
     link.remove();
-    URL.revokeObjectURL(link.href);
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
   function importBackup(file) {
     const reader = new FileReader();
     reader.onload = () => {
+      let imported;
+      let importedDivisionOptions;
+      let backupParsed = false;
       try {
         const data = JSON.parse(reader.result);
-        const imported = Array.isArray(data) ? data : data.proposals;
+        imported = Array.isArray(data) ? data : data.proposals;
         if (!Array.isArray(imported)) throw new Error("Invalid backup format");
-        proposals = imported.map(normalizeProposal);
-        divisionOptions = data && "divisionOptions" in data
+        const normalizedProposals = imported.map(normalizeProposal);
+        importedDivisionOptions = data && !Array.isArray(data) && "divisionOptions" in data
           ? normalizeDivisionOptions(data.divisionOptions)
-          : collectDivisionOptions(proposals);
-        localStorage.removeItem(LEGACY_DRAFT_KEY);
+          : collectDivisionOptions(normalizedProposals);
+        backupParsed = true;
+
+        saveProposals(normalizedProposals);
+        divisionOptions = importedDivisionOptions;
         saveDivisionOptions();
-        saveProposals();
+        localStorage.removeItem(LEGACY_DRAFT_KEY);
         render();
         alert("Backup imported successfully.");
       } catch (error) {
-        alert("That file does not look like a valid Proposal Manager backup.");
+        console.warn("Unable to import backup", error);
+        if (backupParsed) {
+          alert(storageFailureMessage());
+        } else {
+          alert("That file does not look like a valid Proposal Manager backup.");
+        }
       } finally {
         importInput.value = "";
       }
