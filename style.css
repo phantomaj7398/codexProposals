@@ -97,14 +97,8 @@ label {
   box-shadow: none;
 }
 
-.brand strong,
-.brand small {
+.brand strong {
   display: block;
-}
-
-.brand small {
-  color: var(--muted);
-  font-size: 0.74rem;
 }
 
 .topbar-actions,
@@ -242,16 +236,6 @@ label {
   text-align: center;
 }
 
-.action-column {
-  width: 110px;
-}
-
-.small-button {
-  min-height: 36px;
-  padding: 8px 12px;
-  font-size: 0.82rem;
-}
-
 .image-preview-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -324,6 +308,18 @@ label {
 
 .choice-panel-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+#sortPanel {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+#sortPanel .choice-chip {
+  min-height: 36px;
+  padding: 8px 6px;
+  font-size: 11px;
+  border-radius: 10px;
 }
 
 .choice-panel-divisions {
@@ -925,32 +921,6 @@ button.country-chip {
   font-weight: 500;
 }
 
-.document-table {
-  min-width: 0;
-  table-layout: fixed;
-  margin-bottom: 0;
-  font-size: 13px;
-}
-
-.document-table th,
-.document-table td {
-  color: var(--muted);
-  padding: 8px;
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-}
-
-.document-table th {
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
 .division-row-list {
   display: grid;
   border-top: 1px solid var(--line);
@@ -1176,6 +1146,10 @@ button.country-chip {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  #sortPanel {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .choice-panel-divisions {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -1203,9 +1177,6 @@ button.country-chip {
 
   .form-grid .meta-field {
     min-width: 0;
-  }
-
-  .form-grid .meta-field {
     grid-column: auto;
   }
 
@@ -1284,18 +1255,11 @@ button.country-chip {
   .division-action-row {
     width: 100%;
   }
+
   .detail-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: calc(100vw - 24px);
     gap: 10px;
-  }
-
-  .division-action-row {
-    grid-template-columns: 1fr;
-  }
-
-  .country-chip {
-    font-size: 10px;
   }
 }
 

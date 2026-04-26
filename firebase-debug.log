@@ -37,3 +37,42 @@
     at process.processTimers (node:internal/timers:519:7)
 [error] 
 [error] Error: An unexpected error has occurred.
+[debug] [2026-04-26T07:54:54.890Z] ----------------------------------------------------------------------
+[debug] [2026-04-26T07:54:54.894Z] Command:       /home/ajayyadav/Documents/codex-ai-env/bin/node /home/ajayyadav/Documents/codex-ai-env/bin/firebase use
+[debug] [2026-04-26T07:54:54.894Z] CLI Version:   15.15.0
+[debug] [2026-04-26T07:54:54.894Z] Platform:      linux
+[debug] [2026-04-26T07:54:54.895Z] Node Version:  v20.19.0
+[debug] [2026-04-26T07:54:54.895Z] Time:          Sun Apr 26 2026 13:24:54 GMT+0530 (India Standard Time)
+[debug] [2026-04-26T07:54:54.895Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-04-26T07:54:54.896Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-04-26T07:54:54.925Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-26T07:54:54.927Z] SystemError [ERR_SYSTEM_ERROR]: A system error occurred: uv_interface_addresses returned Unknown system error 1 (Unknown system error 1)
+    at networkInterfaces (node:os:277:16)
+    at isGoogleComputeEngineMACAddress (/home/ajayyadav/Documents/codex-ai-env/lib/node_modules/firebase-tools/node_modules/gcp-metadata/build/src/gcp-residency.js:86:51)
+    at isGoogleComputeEngine (/home/ajayyadav/Documents/codex-ai-env/lib/node_modules/firebase-tools/node_modules/gcp-metadata/build/src/gcp-residency.js:104:44)
+    at detectGCPResidency (/home/ajayyadav/Documents/codex-ai-env/lib/node_modules/firebase-tools/node_modules/gcp-metadata/build/src/gcp-residency.js:112:41)
+    at setGCPResidency (/home/ajayyadav/Documents/codex-ai-env/lib/node_modules/firebase-tools/node_modules/gcp-metadata/build/src/index.js:393:97)
+    at Object.getGCPResidency (/home/ajayyadav/Documents/codex-ai-env/lib/node_modules/firebase-tools/node_modules/gcp-metadata/build/src/index.js:381:9)
+    at GoogleAuth._checkIsGCE (/home/ajayyadav/Documents/codex-ai-env/lib/node_modules/firebase-tools/node_modules/google-auth-library/build/src/auth/googleauth.js:300:29)
+    at GoogleAuth.getApplicationDefaultAsync (/home/ajayyadav/Documents/codex-ai-env/lib/node_modules/firebase-tools/node_modules/google-auth-library/build/src/auth/googleauth.js:283:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async GoogleAuth._GoogleAuth_determineClient (/home/ajayyadav/Documents/codex-ai-env/lib/node_modules/firebase-tools/node_modules/google-auth-library/build/src/auth/googleauth.js:834:32)
+[error] 
+[error] Error: Failed to authenticate, have you run firebase login?
+[debug] [2026-04-26T07:54:54.928Z] *** [apiv2] error from fetch(https://firebase-public.firebaseio.com/cli.json, {"headers":{},"method":"GET"}): FetchError: request to https://firebase-public.firebaseio.com/cli.json failed, reason: getaddrinfo ENOTFOUND firebase-public.firebaseio.com
+[warn] ⚠  Unable to fetch the CLI MOTD and remote config. This is not a fatal error, but may indicate an issue with your network connection. 
+[debug] [2026-04-26T07:54:54.929Z] Failed to fetch MOTD FirebaseError: Failed to make request to https://firebase-public.firebaseio.com/cli.json
+[debug] [2026-04-26T07:54:55.183Z] Error: ENOENT: no such file or directory, mkdir '/home/ajayyadav/.config/configstore'
+    at Object.mkdirSync (node:fs:1372:26)
+    at module.exports.sync (/home/ajayyadav/Documents/codex-ai-env/lib/node_modules/firebase-tools/node_modules/make-dir/index.js:114:6)
+    at set all [as all] (/home/ajayyadav/Documents/codex-ai-env/lib/node_modules/firebase-tools/node_modules/configstore/index.js:59:12)
+    at Configstore.delete (/home/ajayyadav/Documents/codex-ai-env/lib/node_modules/firebase-tools/node_modules/configstore/index.js:101:12)
+    at process.<anonymous> (/home/ajayyadav/Documents/codex-ai-env/lib/node_modules/firebase-tools/lib/bin/cli.js:65:45)
+    at process.emit (node:events:536:35)
+    at process.exit (node:internal/process/per_thread:184:15)
+    at Timeout._onTimeout (/home/ajayyadav/Documents/codex-ai-env/lib/node_modules/firebase-tools/lib/errorOut.js:20:17)
+    at listOnTimeout (node:internal/timers:581:17)
+    at process.processTimers (node:internal/timers:519:7)
+[error] 
+[error] Error: An unexpected error has occurred.

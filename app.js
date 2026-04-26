@@ -35,11 +35,9 @@
   let divisionOptions = loadDivisionOptions();
   let firebaseState = {
     enabled: false,
-    configured: false,
     db: null,
     api: null,
-    remoteProposalIds: new Set(),
-    pendingRender: false
+    remoteProposalIds: new Set()
   };
 
   function uid() {
@@ -102,10 +100,10 @@
     return status === "For information only" ? "For info..." : status;
   }
 
-  function normalizeStoredImage(image) {
+  function normalizeStoredImage(image, fallbackName = "Captured image") {
     if (!image || !image.dataUrl) return null;
     return {
-      name: String(image.name || "Captured image"),
+      name: String(image.name || fallbackName),
       type: String(image.type || "image/*"),
       size: Number(image.size || 0),
       originalName: String(image.originalName || ""),
@@ -151,24 +149,25 @@
     return [];
   }
 
+  function normalizeDivisionRows(divisions) {
+    const incoming = Array.isArray(divisions) ? divisions : [];
+    return incoming
+      .map((row) => {
+        const additionalPhoto = normalizeStoredImage(row && row.additionalPhoto);
+        return {
+          division: String((row && (row.division || row.divisions)) || "").trim(),
+          commentsStatus: normalizeCommentStatus(row || {}),
+          comments: String((row && row.comments) || "").trim(),
+          additionalPhoto,
+          countries: normalizeCountries(row && row.countries)
+        };
+      })
+      .filter((row) => row.division);
+  }
+
   function normalizeProposal(proposal) {
     const now = todayISO();
-    const divisions = Array.isArray(proposal.divisions) ? proposal.divisions : [];
-    const rawImages = Array.isArray(proposal.images) ? proposal.images : (proposal.image ? [proposal.image] : []);
-    const images = rawImages
-      .filter((image) => image && image.dataUrl)
-      .map((image) => ({
-        name: String(image.name || "Uploaded image"),
-        type: String(image.type || "image/*"),
-        size: Number(image.size || 0),
-        originalName: String(image.originalName || ""),
-        originalType: String(image.originalType || ""),
-        originalSize: Number(image.originalSize || 0),
-        width: Number(image.width || 0),
-        height: Number(image.height || 0),
-        compressed: Boolean(image.compressed),
-        dataUrl: String(image.dataUrl || "")
-      }));
+    const images = normalizeImages(proposal);
     const legacyTimeline = String(proposal.timeline || "").trim();
     const inferredDate = /^\d{4}-\d{2}-\d{2}$/.test(legacyTimeline) ? legacyTimeline : "";
     const incomingTimelineDate = dateInputValue(proposal.timelineDate || inferredDate);
@@ -176,7 +175,7 @@
     const timelineDate = timelineType === "date" ? incomingTimelineDate : "";
 
     return {
-      id: proposal.id || uid(),
+      id: String(proposal.id || uid()),
       title: String(proposal.title || "").trim(),
       description: String(proposal.description || "").trim(),
       timelineType,
@@ -184,21 +183,44 @@
       deadline: dateInputValue(proposal.deadline || proposal.dueDate),
       def: Boolean(proposal.def),
       notes: String(proposal.notes || "").trim(),
-      divisions: divisions.map((row) => {
-        const additionalPhoto = normalizeStoredImage(row.additionalPhoto);
-        return {
-          division: String(row.division || row.divisions || "").trim(),
-          commentsStatus: normalizeCommentStatus(row),
-          comments: String(row.comments || "").trim(),
-          additionalPhoto,
-          countries: normalizeCountries(row.countries)
-        };
-      }),
+      divisions: normalizeDivisionRows(proposal.divisions),
       images,
       status: normalizeStatus(proposal.status),
       createdAt: proposal.createdAt || now,
       updatedAt: proposal.updatedAt || now
     };
+  }
+
+  function normalizeDraft(draft) {
+    if (!draft || typeof draft !== "object") return null;
+    const legacyTimeline = String(draft.timeline || "").trim();
+    const inferredDate = /^\d{4}-\d{2}-\d{2}$/.test(legacyTimeline) ? legacyTimeline : "";
+    const timelineDate = dateInputValue(draft.timelineDate || inferredDate);
+    const normalized = {
+      title: String(draft.title || "").trim(),
+      description: String(draft.description || "").trim(),
+      def: Boolean(draft.def),
+      timelineType: timelineDate ? "date" : "none",
+      timelineDate,
+      deadline: dateInputValue(draft.deadline || draft.dueDate),
+      notes: String(draft.notes || "").trim(),
+      divisions: normalizeDivisionRows(draft.divisions),
+      images: normalizeImages(draft),
+      status: normalizeStatus(draft.status),
+      draftImageOwnerId: String(draft.draftImageOwnerId || "")
+    };
+
+    const hasContent = normalized.title ||
+      normalized.description ||
+      normalized.notes ||
+      normalized.deadline ||
+      normalized.timelineDate ||
+      normalized.def ||
+      normalized.divisions.length ||
+      normalized.images.length ||
+      normalized.status !== "Pending";
+
+    return hasContent ? normalized : null;
   }
 
   function loadProposals() {
@@ -290,7 +312,6 @@
         ? configModule.isFirebaseConfigured(config)
         : Boolean(config.apiKey && config.projectId && config.appId);
 
-      firebaseState.configured = configured;
       if (!configured) {
         setCloudStatus("Local storage");
         return;
@@ -342,16 +363,26 @@
     const remoteOptions = optionsSnapshot.exists()
       ? normalizeDivisionOptions((optionsSnapshot.data() || {}).options)
       : null;
+    const draftSnapshot = await getDoc(firebaseDoc(FIREBASE_SETTINGS_COLLECTION + "/" + FIREBASE_DRAFT_DOC));
+    const remoteDraft = draftSnapshot.exists()
+      ? normalizeDraft((draftSnapshot.data() || {}).draft)
+      : null;
 
-    if (remoteProposals.length || optionsSnapshot.exists()) {
+    if (remoteProposals.length || optionsSnapshot.exists() || draftSnapshot.exists()) {
       proposals = remoteProposals;
       divisionOptions = remoteOptions || collectDivisionOptions(proposals);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(proposals));
       localStorage.setItem(DIVISION_OPTIONS_KEY, JSON.stringify(divisionOptions));
+      if (remoteDraft) {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(remoteDraft));
+      } else {
+        localStorage.removeItem(DRAFT_KEY);
+      }
     } else if (proposals.length || divisionOptions.length || loadDraft()) {
+      const localDraft = loadDraft();
       await saveProposalsToFirebase();
       await saveDivisionOptionsToFirebase();
-      await saveDraftToFirebase(loadDraft());
+      await saveDraftToFirebase(localDraft);
     }
   }
 
@@ -408,7 +439,7 @@
     try {
       const snapshot = await firebaseState.api.getDoc(firebaseDoc(FIREBASE_SETTINGS_COLLECTION + "/" + FIREBASE_DRAFT_DOC));
       if (!snapshot.exists()) return null;
-      return (snapshot.data() || {}).draft || null;
+      return normalizeDraft((snapshot.data() || {}).draft);
     } catch (error) {
       console.warn("Unable to load draft from Firebase", error);
       return null;
@@ -541,7 +572,7 @@
       });
 
       proposalList.innerHTML = "";
-      resultCount.textContent = visible.length + (visible.length === 1 ? " shown" : " shown");
+      resultCount.textContent = visible.length + " shown";
       emptyState.hidden = visible.length > 0;
 
       visible.forEach((proposal) => {
@@ -599,10 +630,9 @@
     const cancelFormDivisionModal = document.getElementById("cancelFormDivisionModal");
     const closeFormDivisionModal = document.getElementById("closeFormDivisionModal");
     const removeImageButton = document.getElementById("removeImageButton");
-    const data = existing || {};
-    const imageOwnerId = existing ? existing.id : uid();
+    const data = existing || loadDraft() || {};
+    const imageOwnerId = existing ? existing.id : (data.draftImageOwnerId || uid());
     let currentImages = normalizeImages(data);
-    let formHasUserInput = false;
 
     deleteButton.hidden = !existing;
 
@@ -620,7 +650,6 @@
 
     let autosaveTimer;
     form.addEventListener("input", () => {
-      formHasUserInput = true;
       clearTimeout(autosaveTimer);
       autosaveState.textContent = "Saving...";
       autosaveTimer = setTimeout(() => {
@@ -996,16 +1025,6 @@
     cameraCapture.addEventListener("change", () => processOcrFiles(cameraCapture));
   }
 
-  function emptyDivisionRow() {
-    return {
-      division: "",
-      commentsStatus: "awaited",
-      comments: "",
-      additionalPhoto: null,
-      countries: []
-    };
-  }
-
   function syncOptionalDate(form, name) {
     const input = form.elements[name];
     const mode = form.elements[name + "Mode"];
@@ -1146,24 +1165,6 @@
     if (status === "declined") return "Declined";
     if (status === "partial") return "Partial";
     return "Awaited";
-  }
-
-  function renderAdditionalCommentDetail(row) {
-    if (row.additionalPhoto && row.additionalPhoto.dataUrl) {
-      return `<figure class="division-photo-thumb detail-photo-thumb"><img src="${escapeHtml(row.additionalPhoto.dataUrl)}" alt="${escapeHtml(row.additionalPhoto.name || "Captured division photo")}"><figcaption>${escapeHtml(row.additionalPhoto.name || "Captured photo")}</figcaption></figure>`;
-    }
-    return "";
-  }
-
-  function renderCountriesDetail(row) {
-    const countries = normalizeCountries(row.countries);
-    return countries.length
-      ? `<div class="country-chip-wrap">` + countries.map((country) => `
-          <span class="country-chip color-${country.color}">
-            ${escapeHtml(country.name)}
-          </span>
-        `).join("") + `</div>`
-      : "";
   }
 
   function renderDivisionPhotoPreview(row, image) {
@@ -1307,19 +1308,8 @@
   function normalizeImages(source) {
     const rawImages = Array.isArray(source.images) ? source.images : (source.image ? [source.image] : []);
     return rawImages
-      .filter((image) => image && image.dataUrl)
-      .map((image) => ({
-        name: String(image.name || "Uploaded image"),
-        type: String(image.type || "image/*"),
-        size: Number(image.size || 0),
-        originalName: String(image.originalName || ""),
-        originalType: String(image.originalType || ""),
-        originalSize: Number(image.originalSize || 0),
-        width: Number(image.width || 0),
-        height: Number(image.height || 0),
-        compressed: Boolean(image.compressed),
-        dataUrl: String(image.dataUrl || "")
-      }));
+      .map((image) => normalizeStoredImage(image, "Uploaded image"))
+      .filter(Boolean);
   }
 
   function updateImagePreview(images) {
@@ -1357,7 +1347,7 @@
 
   function loadDraft() {
     try {
-      return JSON.parse(localStorage.getItem(DRAFT_KEY) || "null");
+      return normalizeDraft(JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"));
     } catch (error) {
       return null;
     }
@@ -1365,13 +1355,6 @@
 
   function textOrFallback(value, fallback) {
     return value && value.trim() ? value : fallback;
-  }
-
-  function getTimelineLabel(proposal) {
-    if (proposal.timelineType === "date" && proposal.timelineDate) {
-      return formatDate(proposal.timelineDate + "T00:00:00");
-    }
-    return "No fixed date";
   }
 
   function renderDetail(id) {
@@ -1548,8 +1531,10 @@
         divisionOptions = data && "divisionOptions" in data
           ? normalizeDivisionOptions(data.divisionOptions)
           : collectDivisionOptions(proposals);
+        localStorage.removeItem(DRAFT_KEY);
         saveDivisionOptions();
         saveProposals();
+        saveDraftToFirebase(null);
         render();
         alert("Backup imported successfully.");
       } catch (error) {
