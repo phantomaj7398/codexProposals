@@ -1420,36 +1420,82 @@
 
     function renderDivisionTable() {
       const selectedRows = (proposal.divisions || []).filter((row) => row.division);
-      detailDivisionRows.innerHTML = selectedRows.map((row) => {
-        const additionalComment = renderAdditionalCommentDetail(row) || `<p class="muted-text">No additional comments.</p>`;
-        const countries = renderCountriesDetail(row) || `<p class="muted-text">No countries listed.</p>`;
+      detailDivisionRows.innerHTML = selectedRows.map((row, index) => {
+        const status = normalizeCommentStatus(row);
+        const statusLabel = renderDivisionCommentDetail(row);
+        const hasPhoto = Boolean(row.additionalPhoto && row.additionalPhoto.dataUrl);
+        const hasCountries = normalizeCountries(row.countries).length > 0;
         return `
-          <section class="division-card">
-            <div class="division-card-header">
-              <h4>${escapeHtml(row.division)}</h4>
-              <span class="division-status-badge">${renderDivisionCommentDetail(row)}</span>
-            </div>
-            <div class="division-card-body">
-              <div class="division-card-field">
-                <span>Comments</span>
-                <p>${renderDivisionCommentDetail(row)}</p>
-              </div>
-              <div class="division-card-field">
-                <span>Additional Comments</span>
-                ${additionalComment}
-              </div>
-              <div class="division-card-field">
-                <span>Countries</span>
-                ${countries}
-              </div>
-            </div>
-          </section>
+          <div class="division-row">
+            <span class="division-name">${escapeHtml(row.division)}</span>
+            <span class="division-status ${escapeHtml(status)}">${escapeHtml(statusLabel)}</span>
+            ${hasPhoto
+              ? `<button class="division-action photo" type="button" data-detail-photo="${index}">Photo</button>`
+              : `<span class="division-action none">None</span>`}
+            ${hasCountries
+              ? `<button class="division-action list" type="button" data-detail-countries="${index}">List</button>`
+              : `<span class="division-action none">None</span>`}
+          </div>
         `;
       }).join("");
       detailDivisionEmpty.hidden = selectedRows.length > 0;
     }
 
     renderDivisionTable();
+
+    const detailPreviewModal = document.getElementById("detailPreviewModal");
+    const detailPreviewTitle = document.getElementById("detailPreviewTitle");
+    const detailPreviewBody = document.getElementById("detailPreviewBody");
+    const closeDetailPreviewModal = document.getElementById("closeDetailPreviewModal");
+
+    function openDetailPreview(title, content) {
+      detailPreviewTitle.textContent = title;
+      detailPreviewBody.innerHTML = content;
+      detailPreviewModal.hidden = false;
+    }
+
+    function closeDetailPreview() {
+      detailPreviewModal.hidden = true;
+      detailPreviewTitle.textContent = "";
+      detailPreviewBody.innerHTML = "";
+    }
+
+    detailDivisionRows.addEventListener("click", (event) => {
+      const photoButton = event.target.closest("[data-detail-photo]");
+      const countryButton = event.target.closest("[data-detail-countries]");
+      const selectedRows = (proposal.divisions || []).filter((row) => row.division);
+
+      if (photoButton) {
+        const row = selectedRows[Number(photoButton.dataset.detailPhoto)];
+        const image = row ? normalizeStoredImage(row.additionalPhoto) : null;
+        if (image && image.dataUrl) {
+          openDetailPreview(
+            image.name || "Division photo",
+            `<figure class="detail-preview-figure"><img src="${escapeHtml(image.dataUrl)}" alt="${escapeHtml(image.name || "Captured division photo")}"><figcaption>${escapeHtml(image.name || "Captured photo")}</figcaption></figure>`
+          );
+        }
+      }
+
+      if (countryButton) {
+        const row = selectedRows[Number(countryButton.dataset.detailCountries)];
+        const countries = row ? normalizeCountries(row.countries) : [];
+        if (countries.length) {
+          openDetailPreview(
+            `${row.division} countries`,
+            `<div class="detail-preview-countries">` + countries.map((country) => `
+              <span class="country-chip color-${country.color}">${escapeHtml(country.name)}</span>
+            `).join("") + `</div>`
+          );
+        }
+      }
+    });
+
+    closeDetailPreviewModal.addEventListener("click", closeDetailPreview);
+    detailPreviewModal.addEventListener("click", (event) => {
+      if (event.target === detailPreviewModal) {
+        closeDetailPreview();
+      }
+    });
 
     document.getElementById("editDetailButton").href = "#/edit/" + encodeURIComponent(proposal.id);
     document.getElementById("pdfButton").addEventListener("click", () => window.print());

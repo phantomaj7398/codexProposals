@@ -252,7 +252,7 @@
 
         <section id="detailTableSection" hidden>
           <h3>Divisions</h3>
-          <div class="division-card-list" id="detailDivisionRows"></div>
+          <div class="division-row-list" id="detailDivisionRows"></div>
           <p id="detailDivisionEmpty" class="hint" hidden>No divisions selected.</p>
         </section>
 
@@ -271,6 +271,16 @@
           <p id="detailDescription"></p>
         </section>
       </article>
+
+      <div class="modal-backdrop detail-preview-backdrop" id="detailPreviewModal" hidden>
+        <section class="panel modal-panel detail-preview-panel" role="dialog" aria-modal="true" aria-labelledby="detailPreviewTitle">
+          <div class="modal-header">
+            <h2 id="detailPreviewTitle"></h2>
+            <button class="icon-button compact-button" id="closeDetailPreviewModal" type="button">Close</button>
+          </div>
+          <div class="detail-preview-body" id="detailPreviewBody"></div>
+        </section>
+      </div>
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
